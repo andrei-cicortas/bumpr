@@ -7,9 +7,9 @@ Built for the Nebius x NVIDIA Global AI Hackathon (Coding and Agentic Engineerin
 
 | Migration | Tests after bump | After Bumpr | Wall time | Cost | Same calls on Ultra only |
 |---|---|---|---|---|---|
-| pandas 2.2 -> **3.1** (released 2026) | 0 / 7 | **7 / 7** | 3:38 | $0.031 | $0.121 |
-| pydantic 1.10 -> 2.14 | 0 / 11 | **11 / 11** | 1:41 | $0.018 | $0.051 |
-| SQLAlchemy 1.4 -> 2.1 | 0 / 5 | **5 / 5** | 5:10 | $0.040 | $0.192 |
+| pandas 2.2 -> **3.1** (released 2026) | 0 / 7 | **7 / 7** | 3:46 | $0.035 | $0.144 |
+| pydantic 1.10 -> 2.14 | 0 / 11 | **11 / 11** | 3:21 | $0.044 | $0.145 |
+| SQLAlchemy 1.4 -> 2.1 | 0 / 5 | **5 / 5** | 4:01 | $0.069 | $0.210 |
 
 *Numbers from the recorded runs in `web/replays/`; costs use live Token Factory prices.*
 
@@ -56,8 +56,9 @@ write the *old* API. In our own tests, both Nemotron 3 Super and Ultra rewrote a
 3. **Think, then rewrite.** Nemotron 3 Ultra receives the code, the failing test lines and the excerpts, writes a
    migration plan, and outputs complete new files. Its reasoning streams live into the UI.
 4. **Tests are the judge.** Tests, requirements and test config are write-protected; shortcuts such as
-   `pydantic.v1`, warning filters or `pytest.skip` are rejected. Failures go back to Ultra (up to 5 attempts),
-   and Ultra can ask for more docs with `NEED_DOCS: <query>`.
+   `pydantic.v1`, warning filters or `pytest.skip` are rejected. Failures go back to Ultra (up to 5 attempts).
+   Ultra can ask for more docs with `NEED_DOCS: <query>`, and when a *new* error appears Bumpr looks it up in the
+   package's official docs before the next attempt instead of letting the model guess.
 5. **Ship.** Nemotron 3 Nano writes the PR description from Ultra's plan and the diff; you get a `.patch`.
 
 ### Why two Nemotron models
@@ -68,7 +69,7 @@ write the *old* API. In our own tests, both Nemotron 3 Super and Ultra rewrote a
 | Read whole docs pages, extract passages | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Most tokens in a run are documentation; Nano reads them at 1/16 of Ultra's input price |
 | Write the PR | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Formatting work, no reasoning needed |
 
-Across the three recorded runs, Nano processed most of the tokens, and the cascade cost **65-79% less** than
+Across the three recorded runs, Nano processed most of the tokens, and the cascade cost **67-76% less** than
 sending the same calls to Ultra, while Ultra's context stays small (excerpts instead of 50k-character pages).
 
 ### What we learned building it
@@ -76,7 +77,7 @@ sending the same calls to Ultra, while Ultra's context stays small (excerpts ins
 * **Agentic tool loops made Nemotron Ultra *worse* here.** Our first version gave Ultra fine-grained tools
   (`read_file`, `replace_in_file`, `run_tests`, ...). It took 30+ short steps, barely reasoned per step
   (30-100 output tokens), and never got the pydantic sample green ($0.20-0.24 per failed run). Switching to
-  "think hard, rewrite whole files, let the tests judge" gave green runs in 2-3 calls for about $0.02-0.04.
+  "think hard, rewrite whole files, let the tests judge" gave green runs in 2-3 Ultra calls for about $0.03-0.07.
 * **Small models should copy, not paraphrase.** With thinking disabled, Nano summaries of the docs contained
   confident errors (e.g. "`each_item=True` is replaced by `mode='before'`") that derailed the planner. Asking
   Nano for *verbatim* passages and verifying them against the source fixed it.

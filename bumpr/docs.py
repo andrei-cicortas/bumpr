@@ -53,9 +53,14 @@ def read_page(llm, url, focus, emit):
     page = tavily_extract(url)[:MAX_PAGE_CHARS]
     if not page:
         return f"Could not fetch {url}."
-    raw = llm.text(config.FAST_MODEL, EXTRACT_SYSTEM, f"FOCUS:\n{focus}\n\nDOCUMENT ({url}):\n{page}",
-                   purpose="read docs", max_tokens=12000, think=True)
+    prompt = f"FOCUS:\n{focus}\n\nDOCUMENT ({url}):\n{page}"
+    # Verbatim copying is mechanical, so try the fast no-thinking mode first; the grounding check below
+    # catches anything that was not really copied. Fall back to thinking mode if nothing survives.
+    raw = llm.text(config.FAST_MODEL, EXTRACT_SYSTEM, prompt, purpose="read docs", max_tokens=6000, think=False)
     passages, checked = grounded_passages(raw, page)
+    if not passages:
+        raw = llm.text(config.FAST_MODEL, EXTRACT_SYSTEM, prompt, purpose="read docs", max_tokens=16000, think=True)
+        passages, checked = grounded_passages(raw, page)
     emit({"type": "docs", "url": url, "page_chars": len(page), "passages": len(passages), "checked": checked,
           "excerpt": "\n---\n".join(passages)[:4000]})
     if not passages:
@@ -83,8 +88,15 @@ def grounded_passages(raw, page):
     return kept, len(candidates)
 
 
-def pick_guide(results, package):
+def official(url, package):
+    host = url.split("/")[2].lower() if url.count("/") >= 2 else ""
+    return package.lower().replace("-", "") in host.replace("-", "")
+
+
+def pick_guide(results, package, official_only=False):
     """Prefer the package's own migration / what's-new page among search results."""
+    if official_only:
+        results = [r for r in results if official(r["url"], package)]
     def score(r):
         u, t = r["url"].lower(), r["title"].lower()
         s = 0
@@ -111,4 +123,8 @@ def initial_research(llm, package, new, code, emit):
     if not guide:
         return "No migration guide found.", []
     focus = f"Migrating this code to {package} {new}:\n{code[:20000]}"
-    return read_page(llm, guide["url"], focus, emit), [r["url"] for r in results]
+    excerpts = read_page(llm, guide["url"], focus, emit)
+    if "Verbatim excerpts" not in excerpts:  # retrieval came back empty: raw search snippets beat nothing
+        excerpts += "\n\nSearch snippets:\n" + "\n\n".join(
+            f"[{i + 1}] {r['url']}\n{r['content'][:2000]}" for i, r in enumerate(results))
+    return excerpts, [r["url"] for r in results]

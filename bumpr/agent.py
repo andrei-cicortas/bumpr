@@ -13,6 +13,7 @@ from .tools import Toolbox
 
 MAX_ATTEMPTS = 5
 MAX_DOC_REQUESTS = 2
+MAX_AUTO_LOOKUPS = 2
 
 PLANNER_SYSTEM = """You are Bumpr, a senior Python engineer who migrates codebases to new major versions of a dependency.
 
@@ -137,9 +138,11 @@ class Run:
         return self._finish(ws, before, old, new, total, broken, final, tools, summary)
 
     def _iterate(self, messages, tools, total):
-        doc_requests = 0
+        doc_requests = auto_lookups = 0
+        seen_errors = set()
         attempt = 0
         plan = ""
+        plans = []
         while attempt < MAX_ATTEMPTS:
             attempt += 1
             self.phase("fix", f"Attempt {attempt}: Nemotron Ultra is thinking")
@@ -149,6 +152,8 @@ class Run:
             messages.append({"role": "assistant", "content": content})
             plan = content.split("### FILE:")[0].replace("PLAN:", "").strip()
             self.emit({"type": "plan", "attempt": attempt, "text": plan[:3000]})
+            if plan:
+                plans.append(f"Attempt {attempt}:\n{plan}")
 
             files = FILE_BLOCK.findall(content)
             wanted = re.findall(r"^NEED_DOCS:\s*(.+)$", content, re.M)
@@ -170,16 +175,31 @@ class Run:
                     rejected.append(f"{path}: {out}")
             report = tools.t_run_tests()
             if tools.last_run.green:
-                return plan, tools.last_run
+                return "\n\n".join(plans), tools.last_run
             feedback = f"Test results after your changes:\n{report}"
             if rejected:
                 feedback = "Rejected edits:\n" + "\n".join(rejected) + "\n\n" + feedback
             if wanted and doc_requests < MAX_DOC_REQUESTS:
                 doc_requests += 1
                 feedback += "\n\n" + self._lookup(tools, wanted[:2])
+            else:
+                error = self._first_error(tools.last_run.output)
+                if error and error not in seen_errors and auto_lookups < MAX_AUTO_LOOKUPS:
+                    # A new error the planner did not ask about: look it up in the docs rather than let it guess.
+                    seen_errors.add(error)
+                    auto_lookups += 1
+                    feedback += "\n\n" + self._lookup(tools, [f"{self.package} {tools.new_version} {error}"])
             messages.append({"role": "user", "content": feedback + "\n\nFix the remaining failures. Output "
                              "complete files for everything you change."})
-        return plan, tools.last_run
+        return "\n\n".join(plans), tools.last_run
+
+    @staticmethod
+    def _first_error(output):
+        for line in output.splitlines():
+            if line.startswith("E ") and len(line.strip()) > 4:
+                msg = re.sub(r"0x[0-9a-fA-F]+|https?://\S+", "", line[1:].strip())
+                return msg[:140]
+        return ""
 
     def _lookup(self, tools, queries):
         parts = []
@@ -187,7 +207,7 @@ class Run:
             self.phase("research", f"Looking up: {q}")
             snippets, urls = docs.search(q, self.emit)
             tools.sources.extend(u for u in urls if u not in tools.sources)
-            official = docs.pick_guide([{"url": u, "title": ""} for u in urls], self.package)
+            official = docs.pick_guide([{"url": u, "title": ""} for u in urls], self.package, official_only=True)
             excerpt = docs.read_page(self.llm, official["url"], q, self.emit) if official else ""
             parts.append(f"Docs for `{q}`:\n{excerpt}\n\nSearch snippets:\n{snippets}")
         return "\n\n".join(parts)
@@ -209,7 +229,8 @@ class Run:
                     config.FAST_MODEL, REPORT_SYSTEM,
                     f"Upgrade: {self.package} {old} -> {new}\nTests: {total} passed before; after the bump "
                     f"{broken.passed} passed, {broken.failed} failed, {broken.errors} errors; after the fix "
-                    f"{final.passed} passed.\nMigration plan:\n{summary}\n\nSources:\n" +
+                    f"{final.passed} passed.\nMigration plans from every attempt (later attempts fix what "
+                    f"earlier ones missed; list every change that is in the diff):\n{summary}\n\nSources:\n" +
                     "\n".join(tools.sources[:12]) + f"\n\nDiff:\n{diff_text[:20000]}",
                     purpose="PR write-up", max_tokens=6000, think=True)
             except BudgetExceeded:
