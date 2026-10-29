@@ -69,7 +69,7 @@ write the *old* API. In our own tests, both Nemotron 3 Super and Ultra rewrote a
 | Read whole docs pages, extract passages | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Most tokens in a run are documentation; Nano reads them at 1/16 of Ultra's input price |
 | Write the PR | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Formatting work, no reasoning needed |
 
-Across the three recorded runs, Nano processed most of the tokens, and the cascade cost **67-76% less** than
+Across the three recorded runs, Nano processed 72-90% of all tokens, and the cascade cost **67-76% less** than
 sending the same calls to Ultra, while Ultra's context stays small (excerpts instead of 50k-character pages).
 
 ### What we learned building it
