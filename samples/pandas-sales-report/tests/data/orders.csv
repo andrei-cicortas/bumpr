@@ -1,0 +1,10 @@
+order_id,date,rep,region,status,amount
+1,2025-01-03,  alice ,north,paid,120.0
+2,2025-01-15,bob,,paid,80.0
+3,2025-01-28, carol,south ,refunded,200.0
+4,2025-02-02,alice,,paid,60.0
+5,2025-02-14,bob ,east,paid,150.0
+6,2025-02-20,carol,east,paid,90.0
+7,2025-03-01,alice,south,refunded,40.0
+8,2025-03-11, bob,north,paid,110.0
+9,2025-03-30,carol,,paid,70.0

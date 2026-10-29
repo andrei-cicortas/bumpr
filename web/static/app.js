@@ -1,0 +1,368 @@
+"use strict";
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const fmtUsd = (x) => `$${(x || 0).toFixed(4)}`;
+const fmtTok = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n || 0));
+const domain = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+
+const STEPS = [
+  ["setup", "Setup"], ["baseline", "Baseline"], ["bump", "Bump"], ["break", "Break"],
+  ["research", "Read docs"], ["fix", "Think & rewrite"], ["verify", "Verify"], ["report", "Pull request"],
+];
+const ULTRA = /ultra/i, NANO = /nano|lightning/i;
+
+let config = {};
+let samples = [];
+let session = null; // {token, replayTimer, source}
+
+// ---------------------------------------------------------------------------------------------
+async function boot() {
+  [config, samples] = await Promise.all([fetch("/api/config").then((r) => r.json()), fetch("/api/samples").then((r) => r.json())]);
+  renderSamples();
+  $("#livenote").textContent = config.live
+    ? "Live runs use real Nemotron calls on Nebius Token Factory; recordings replay a real run's event log."
+    : "Live runs are switched off on this deployment; recordings replay a real run's event log, unedited.";
+  const params = new URLSearchParams(location.search);
+  if (params.get("replay")) startReplay(params.get("replay"));
+}
+
+function renderSamples() {
+  $("#samples").innerHTML = samples.map((s) => {
+    const r = s.replay;
+    const rec = r ? `<div class="rec">recorded: <span class="${r.success ? "ok" : ""}">${r.success ? "green" : "red"}</span> · ${r.tests} tests · ${fmtTime(r.elapsed)} · ${fmtUsd(r.cost)}</div>` : "";
+    return `<div class="card" data-name="${s.name}">
+      <h3>${esc(s.title)}</h3>
+      <div class="ver">${esc(s.from)} <b>→</b> ${esc(s.to)}</div>
+      <p>${esc(s.blurb)}</p>${rec}
+      <div class="btns">
+        <button class="ghost" data-act="replay" ${r ? "" : "disabled"}>Watch recording</button>
+        <button class="primary" data-act="live" ${config.live ? "" : "disabled title='Live runs are disabled here'"}>Run live</button>
+      </div></div>`;
+  }).join("");
+  $("#samples").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const name = btn.closest(".card").dataset.name;
+    if (btn.dataset.act === "replay") startReplay(name);
+    else askLive(name);
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+function resetView(name) {
+  if (session?.replayTimer) clearTimeout(session.replayTimer);
+  if (session?.source) session.source.close();
+  session = { token: Symbol(), speed: 4, skip: false };
+  document.querySelectorAll(".card").forEach((c) => c.classList.toggle("active", c.dataset.name === name));
+  $("#empty").hidden = true;
+  $("#runview").hidden = false;
+  $("#feed").innerHTML = "";
+  $("#history").innerHTML = "";
+  $("#result").hidden = true;
+  const s = samples.find((x) => x.name === name);
+  $("#runtitle").innerHTML = `${esc(s.from)} <span class="arrow">→</span> ${esc(s.to)}`;
+  $("#runsub").textContent = `${s.title} · samples/${name}`;
+  $("#stepper").innerHTML = STEPS.map(([k, label]) => `<li data-step="${k}">${label}</li>`).join("");
+  setStatus("running", "running");
+  state = freshState();
+  updateMeter(null);
+  updateStats();
+  $("#clock").textContent = "0:00";
+}
+
+let state = freshState();
+function freshState() {
+  return { calls: [], searches: 0, pages: 0, passages: 0, total: 0, thinking: {}, step: null, runs: 0, done: null };
+}
+
+function setStatus(cls, text) {
+  const el = $("#status");
+  el.className = `status ${cls}`;
+  el.textContent = text;
+}
+
+// ---------------------------------------------------------------------------------------------
+async function startReplay(name) {
+  resetView(name);
+  $("#controls").hidden = false;
+  const data = await fetch(`/api/replays/${name}`).then((r) => r.json());
+  const token = session.token;
+  const events = data.events;
+  let i = 0;
+  const tick = () => {
+    if (session.token !== token) return;
+    if (i >= events.length) return;
+    const ev = events[i++];
+    handle(ev);
+    if (i < events.length) {
+      const gap = Math.max(0, events[i].t - ev.t);
+      const wait = session.skip ? 0 : Math.min(gap, 2.5) * 1000 / session.speed;
+      session.replayTimer = setTimeout(tick, wait);
+    }
+  };
+  tick();
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("#controls button");
+  if (!b || !session) return;
+  document.querySelectorAll("#controls button").forEach((x) => x.classList.remove("on"));
+  b.classList.add("on");
+  if (b.dataset.speed === "skip") { session.skip = true; } else { session.speed = Number(b.dataset.speed); session.skip = false; }
+});
+
+function askLive(name) {
+  if (!config.needs_code) return startLive(name, "");
+  const dlg = $("#codeDialog");
+  $("#codeInput").value = "";
+  dlg.returnValue = "";
+  dlg.showModal();
+  dlg.addEventListener("close", function onClose() {
+    dlg.removeEventListener("close", onClose);
+    if (dlg.returnValue === "ok") startLive(name, $("#codeInput").value.trim());
+  });
+}
+
+async function startLive(name, code) {
+  resetView(name);
+  $("#controls").hidden = true;
+  const res = await fetch("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sample: name, code }) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    handle({ t: 0, type: "error", message: body.detail || `HTTP ${res.status}` });
+    setStatus("red", "not started");
+    return;
+  }
+  const src = new EventSource(`/api/runs/${body.id}/events`);
+  session.source = src;
+  src.onmessage = (m) => handle(JSON.parse(m.data));
+  src.addEventListener("end", () => src.close());
+  src.onerror = () => { if (state.done) src.close(); };
+}
+
+// ---------------------------------------------------------------------------------------------
+function handle(ev) {
+  $("#clock").textContent = fmtTime(ev.t || 0);
+  const fn = HANDLERS[ev.type];
+  if (fn) fn(ev);
+}
+
+const feed = () => $("#feed");
+function add(html, cls = "") {
+  const div = document.createElement("div");
+  div.className = `ev ${cls}`;
+  div.innerHTML = html;
+  feed().appendChild(div);
+  if (!session?.skip) div.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return div;
+}
+function head(dot, who, text, meta = "") {
+  return `<div class="ev-head"><span class="dot ${dot}"></span><span class="who">${who}</span><span>${text}</span><span class="meta">${meta}</span></div>`;
+}
+
+const HANDLERS = {
+  phase(ev) {
+    const idx = STEPS.findIndex(([k]) => k === ev.phase);
+    document.querySelectorAll("#stepper li").forEach((li, i) => {
+      li.classList.toggle("done", i < idx);
+      li.classList.toggle("now", i === idx);
+    });
+    const label = STEPS[idx]?.[1] || ev.phase;
+    const d = document.createElement("div");
+    d.className = "divider";
+    d.innerHTML = `${esc(label)} <span>${esc(ev.detail)}</span>`;
+    feed().appendChild(d);
+  },
+  versions(ev) {
+    $("#runtitle").innerHTML = `${esc(ev.package)} ${esc(ev.old)} <span class="arrow">→</span> ${esc(ev.new)}`;
+  },
+  tests(ev) {
+    state.runs += 1;
+    if (ev.label === "baseline") state.total = ev.passed;
+    updateMeter(ev);
+    const tag = ev.label === "baseline" ? "baseline" : ev.label === "final" ? "final" : `run ${state.runs}`;
+    const h = document.createElement("span");
+    h.className = `hrun ${ev.green ? "g" : "r"}`;
+    h.textContent = `${tag}: ${ev.passed}/${state.total || ev.passed + ev.failed}`;
+    $("#history").appendChild(h);
+    if (ev.label === "final") return;
+    const pill = ev.green ? `<span class="pill g">${ev.passed} passed</span>` :
+      `<span class="pill r">${ev.passed} passed · ${ev.failed} failed · ${ev.errors} errors</span>`;
+    add(head(ev.green ? "test" : "bad", "pytest", pill, `${ev.duration ? ev.duration.toFixed(2) + "s" : ""}`));
+  },
+  triage(ev) {
+    const lines = ev.digest.split("\n");
+    add(head("bad", "Failure log", "key lines") +
+      `<pre class="keys">${esc(lines.slice(0, 8).join("\n"))}</pre>` +
+      (lines.length > 8 ? `<details><summary>${lines.length - 8} more lines</summary><pre class="keys">${esc(lines.slice(8).join("\n"))}</pre></details>` : ""));
+  },
+  search(ev) {
+    state.searches += 1;
+    updateStats();
+    const items = ev.results.map((r) => `<li><span class="dom">${esc(domain(r.url))}</span><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title || r.url)}</a></li>`).join("");
+    add(head("tavily", "Tavily", `search: “${esc(ev.query)}”`, `${ev.results.length} results`) + `<ul class="links">${items}</ul>`);
+  },
+  docs(ev) {
+    state.pages += 1;
+    state.passages += ev.passages;
+    updateStats();
+    const url = ev.url.replace(/^https?:\/\//, "");
+    add(head("nano", "Nemotron Nano", `read <a href="${esc(ev.url)}" target="_blank" rel="noopener">${esc(url)}</a>`, `${ev.page_chars.toLocaleString()} chars`) +
+      `<div class="grounded">✓ ${ev.passages} of ${ev.checked} passages verified verbatim against the page</div>` +
+      (ev.excerpt ? `<details><summary>Passages handed to Ultra</summary><pre>${esc(ev.excerpt)}</pre></details>` : ""));
+  },
+  thinking(ev) {
+    let box = state.thinking[ev.purpose];
+    if (!box) {
+      box = add(head("ultra", "Nemotron Ultra", "is thinking…", "") + `<pre class="think"></pre>`);
+      state.thinking[ev.purpose] = box;
+    }
+    const pre = $("pre", box);
+    pre.textContent += ev.delta;
+    pre.scrollTop = pre.scrollHeight;
+  },
+  llm(ev) {
+    state.calls.push(ev);
+    updateStats();
+    const box = state.thinking[ev.purpose];
+    if (box) {
+      $(".ev-head span:nth-child(3)", box).textContent = `thought for ${ev.latency.toFixed(0)}s`;
+      $(".meta", box).textContent = `${fmtTok(ev.prompt_tokens)} in · ${fmtTok(ev.completion_tokens)} out · ${fmtUsd(ev.cost)}`;
+      const pre = $("pre", box);
+      const det = document.createElement("details");
+      det.innerHTML = `<summary>Reasoning (${pre.textContent.length.toLocaleString()} chars)</summary>`;
+      det.appendChild(pre);
+      box.appendChild(det);
+    } else if (ULTRA.test(ev.model)) {
+      add(head("ultra", "Nemotron Ultra", esc(ev.purpose), `${fmtTok(ev.prompt_tokens)} in · ${fmtTok(ev.completion_tokens)} out · ${ev.latency.toFixed(1)}s · ${fmtUsd(ev.cost)}`));
+    } else {
+      const last = [...feed().querySelectorAll(".ev")].pop();
+      if (last && ev.purpose === "read docs" && !$(".meta", last).dataset.filled) {
+        const m = $(".meta", last);
+        m.textContent += ` · ${ev.latency.toFixed(0)}s · ${fmtUsd(ev.cost)}`;
+        m.dataset.filled = "1";
+      }
+    }
+  },
+  plan(ev) {
+    const items = ev.text.split("\n").map((l) => l.trim()).filter((l) => /^\d+[.)]/.test(l))
+      .map((l) => `<li>${inline(l.replace(/^\d+[.)]\s*/, ""))}</li>`).join("");
+    add(head("ultra", "Nemotron Ultra", `migration plan · attempt ${ev.attempt}`) + (items ? `<ol class="plan">${items}</ol>` : `<pre>${esc(ev.text)}</pre>`));
+  },
+  edit(ev) {
+    const n = ev.diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l)).length;
+    add(head("ultra", "Rewrote", `<code>${esc(ev.path)}</code>`, `${n} lines changed`) +
+      `<details ${n <= 40 ? "open" : ""}><summary>diff</summary><pre class="diff">${diffHtml(ev.diff)}</pre></details>`);
+  },
+  log(ev) { add(head("test", "Bumpr", esc(ev.message))); },
+  error(ev) { add(head("bad", "Stopped", esc(ev.message))); },
+  done(ev) {
+    state.done = ev;
+    if (ev.usage) { state.calls = state.calls.length ? state.calls : []; updateStats(ev.usage); }
+    document.querySelectorAll("#stepper li").forEach((li) => { li.classList.remove("now"); if (ev.success) li.classList.add("done"); });
+    setStatus(ev.success ? "green" : "red", ev.success ? `green · ${ev.final?.passed}/${ev.total} tests` : "failed");
+    if (ev.diff) showResult(ev);
+  },
+};
+
+// ---------------------------------------------------------------------------------------------
+function updateMeter(ev) {
+  const [p, f, e] = $("#bar").children;
+  if (!ev) { p.style.width = f.style.width = e.style.width = "0"; $("#meternum").textContent = "-"; return; }
+  const total = Math.max(state.total, ev.passed + ev.failed + ev.errors, 1);
+  const fails = ev.failed;
+  const errs = ev.passed + ev.failed === 0 ? total : ev.errors ? Math.max(total - ev.passed - ev.failed, ev.errors) : 0;
+  p.style.width = `${(ev.passed / total) * 100}%`;
+  f.style.width = `${(fails / total) * 100}%`;
+  e.style.width = `${Math.min(errs, total - ev.passed - fails) / total * 100}%`;
+  $("#meternum").innerHTML = `<span style="color:${ev.green ? "var(--pass)" : "var(--fail)"}">${ev.passed}</span> / ${total} passing`;
+}
+
+function updateStats(summary) {
+  const agg = { ultra: { calls: 0, tok: 0, cost: 0 }, nano: { calls: 0, tok: 0, cost: 0 } };
+  let allUltra = 0;
+  for (const c of state.calls) {
+    const k = ULTRA.test(c.model) ? "ultra" : "nano";
+    agg[k].calls += 1;
+    agg[k].tok += c.prompt_tokens + c.completion_tokens;
+    agg[k].cost += c.cost;
+    allUltra += (c.prompt_tokens - (c.cached_tokens || 0)) * 1e-6 + (c.cached_tokens || 0) * 1.2e-7 + c.completion_tokens * 3e-6;
+  }
+  const maxTok = Math.max(agg.ultra.tok, agg.nano.tok, 1);
+  for (const k of ["ultra", "nano"]) {
+    const el = $(`.model[data-model=${k}]`);
+    $(".mbar span", el).style.width = `${(agg[k].tok / maxTok) * 100}%`;
+    $(".calls", el).textContent = `${agg[k].calls} call${agg[k].calls === 1 ? "" : "s"}`;
+    $(".toks", el).textContent = `${fmtTok(agg[k].tok)} tok`;
+    $(".cost", el).textContent = fmtUsd(agg[k].cost);
+  }
+  const total = summary ? summary.total_cost : agg.ultra.cost + agg.nano.cost;
+  const counterfactual = summary ? summary.all_planner_cost : allUltra;
+  $("#tcost").textContent = fmtUsd(total);
+  $("#tultra").textContent = fmtUsd(counterfactual);
+  const tokAll = agg.ultra.tok + agg.nano.tok;
+  $("#saving").textContent = counterfactual > total && tokAll
+    ? `Nano processed ${Math.round((agg.nano.tok / tokAll) * 100)}% of all tokens; routing saved ${Math.round((1 - total / counterfactual) * 100)}% vs. Ultra-only.`
+    : "";
+  $("#nsearch").textContent = state.searches;
+  $("#npages").textContent = state.pages;
+  $("#npass").textContent = state.passages;
+}
+
+function showResult(ev) {
+  $("#result").hidden = false;
+  $("#tab-pr").innerHTML = `<div class="md">${markdown(ev.report || ev.summary || "")}</div>`;
+  $("#tab-diff").innerHTML = `<pre class="diff">${diffHtml(ev.diff)}</pre>`;
+  $("#tab-sources").innerHTML = `<ul class="links">${(ev.sources || []).map((u) => `<li><span class="dom">${esc(domain(u))}</span><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a></li>`).join("")}</ul>`;
+  const blob = new Blob([ev.diff], { type: "text/x-diff" });
+  $("#download").href = URL.createObjectURL(blob);
+  $("#download").download = `bumpr-${ev.package}-${ev.new}.patch`;
+  if (!session?.skip) $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest(".tab");
+  if (!t) return;
+  document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === t));
+  for (const k of ["pr", "diff", "sources"]) $(`#tab-${k}`).hidden = k !== t.dataset.tab;
+});
+
+// ---------------------------------------------------------------------------------------------
+function diffHtml(diff) {
+  return diff.split("\n").map((l) => {
+    const e = esc(l);
+    if (/^(\+\+\+|---)/.test(l)) return `<span class="file">${e}</span>`;
+    if (l.startsWith("@@")) return `<span class="hunk">${e}</span>`;
+    if (l.startsWith("+")) return `<span class="add">${e}</span>`;
+    if (l.startsWith("-")) return `<span class="del">${e}</span>`;
+    return e;
+  }).join("\n").replace(/<\/span>\n/g, "</span>");
+}
+
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+}
+
+function markdown(md) {
+  const out = [];
+  let list = false;
+  for (const raw of md.split("\n")) {
+    const line = raw.trimEnd();
+    const li = line.match(/^\s*[-*]\s+(.*)/) || line.match(/^\s*\d+[.)]\s+(.*)/);
+    if (li) { if (!list) { out.push("<ul>"); list = true; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+    if (list) { out.push("</ul>"); list = false; }
+    const h = line.match(/^#{1,4}\s+(.*)/);
+    if (h) out.push(`<h2>${inline(h[1])}</h2>`);
+    else if (line.trim()) out.push(`<p>${inline(line)}</p>`);
+  }
+  if (list) out.push("</ul>");
+  return out.join("");
+}
+
+boot();

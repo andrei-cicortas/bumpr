@@ -1,0 +1,7 @@
+.env
+.venv/
+workspaces/
+runs/
+__pycache__/
+**/__pycache__/
+.git/
