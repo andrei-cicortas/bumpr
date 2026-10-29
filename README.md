@@ -2,6 +2,8 @@
 
 **Upgrade a Python dependency. Bumpr reads *today's* official docs, fixes what broke, and proves it with your tests.**
 
+**Demo:** https://andrei-cicortas.github.io/bumpr/ (replays of real, unedited runs; live runs: see [Run it](#run-it))
+
 Built for the Nebius x NVIDIA Global AI Hackathon (Coding and Agentic Engineering track) with
 **NVIDIA Nemotron 3 Ultra** and **Nemotron 3 Nano** served by **Nebius Token Factory**, plus **Tavily** for live documentation.
 
@@ -102,7 +104,7 @@ python -m bumpr samples/pandas-sales-report pandas --to 3
 python -m bumpr path/to/your/repo sqlalchemy --to 2      # --to latest | 2 | 2.1 | 2.1.6
 ```
 
-**Web UI** (recorded runs + live runs):
+**Web UI** (recorded runs + live runs; `python -m web.build_static` builds the static, recordings-only site in `docs/`):
 
 ```bash
 uvicorn web.server:app --port 8000
@@ -154,7 +156,8 @@ samples/       three small apps pinned to old majors, each with a pytest suite
 
 * Python projects with a pytest suite and a `requirements.txt`; one dependency per run.
 * The tests are the specification: a migration is only as safe as the suite that checks it.
-* Live runs in the hosted demo are behind an access code to protect the hackathon credits.
+* The hosted demo (GitHub Pages) replays recorded runs; live runs need your own Nebius Token Factory and Tavily keys.
+  If you self-host the web UI with live runs, set `BUMPR_ACCESS_CODE` to protect your credits (a `Dockerfile` is included).
 
 ## License
 
