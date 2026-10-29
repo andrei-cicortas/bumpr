@@ -13,17 +13,27 @@ const STEPS = [
 ];
 const ULTRA = /ultra/i, NANO = /nano|lightning/i;
 
+// Static build (GitHub Pages): no backend, recordings are plain JSON files next to the page.
+const STATIC = document.documentElement.dataset.static === "1";
+const API = {
+  config: () => (STATIC ? Promise.resolve({ live: false, static: true }) : fetch("/api/config").then((r) => r.json())),
+  samples: () => fetch(STATIC ? "data/samples.json" : "/api/samples").then((r) => r.json()),
+  replay: (name) => fetch(STATIC ? `data/replays/${name}.json` : `/api/replays/${name}`).then((r) => r.json()),
+};
+
 let config = {};
 let samples = [];
 let session = null; // {token, replayTimer, source}
 
 // ---------------------------------------------------------------------------------------------
 async function boot() {
-  [config, samples] = await Promise.all([fetch("/api/config").then((r) => r.json()), fetch("/api/samples").then((r) => r.json())]);
+  [config, samples] = await Promise.all([API.config(), API.samples()]);
   renderSamples();
-  $("#livenote").textContent = config.live
-    ? "Live runs use real Nemotron calls on Nebius Token Factory; recordings replay a real run's event log."
-    : "Live runs are switched off on this deployment; recordings replay a real run's event log, unedited.";
+  $("#livenote").textContent = config.static
+    ? "This hosted page replays real, unedited event logs of runs against Nemotron on Nebius Token Factory. Use “Run it yourself” for live runs."
+    : config.live
+      ? "Live runs use real Nemotron calls on Nebius Token Factory; recordings replay a real run's event log."
+      : "Live runs are switched off on this deployment; recordings replay a real run's event log, unedited.";
   const params = new URLSearchParams(location.search);
   if (params.get("replay")) startReplay(params.get("replay"));
 }
@@ -38,7 +48,9 @@ function renderSamples() {
       <p>${esc(s.blurb)}</p>${rec}
       <div class="btns">
         <button class="ghost" data-act="replay" ${r ? "" : "disabled"}>Watch recording</button>
-        <button class="primary" data-act="live" ${config.live ? "" : "disabled title='Live runs are disabled here'"}>Run live</button>
+        ${config.static
+          ? `<button class="primary" data-act="local">Run it yourself</button>`
+          : `<button class="primary" data-act="live" ${config.live ? "" : "disabled title='Live runs are disabled here'"}>Run live</button>`}
       </div></div>`;
   }).join("");
   $("#samples").addEventListener("click", (e) => {
@@ -46,6 +58,7 @@ function renderSamples() {
     if (!btn) return;
     const name = btn.closest(".card").dataset.name;
     if (btn.dataset.act === "replay") startReplay(name);
+    else if (btn.dataset.act === "local") $("#localDialog").showModal();
     else askLive(name);
   });
 }
@@ -87,7 +100,7 @@ function setStatus(cls, text) {
 async function startReplay(name) {
   resetView(name);
   $("#controls").hidden = false;
-  const data = await fetch(`/api/replays/${name}`).then((r) => r.json());
+  const data = await API.replay(name);
   const token = session.token;
   const events = data.events;
   let i = 0;
@@ -209,7 +222,10 @@ const HANDLERS = {
     state.passages += ev.passages;
     updateStats();
     const url = ev.url.replace(/^https?:\/\//, "");
-    add(head("nano", "Nemotron Nano", `read <a href="${esc(ev.url)}" target="_blank" rel="noopener">${esc(url)}</a>`, `${ev.page_chars.toLocaleString()} chars`) +
+    const p = state.pendingDocs;
+    state.pendingDocs = null;
+    const meta = `${ev.page_chars.toLocaleString()} chars` + (p ? ` · ${p.latency.toFixed(0)}s · ${fmtUsd(p.cost)}` : "");
+    add(head("nano", "Nemotron Nano", `read <a href="${esc(ev.url)}" target="_blank" rel="noopener">${esc(url)}</a>`, meta) +
       `<div class="grounded">✓ ${ev.passages} of ${ev.checked} passages verified verbatim against the page</div>` +
       (ev.excerpt ? `<details><summary>Passages handed to Ultra</summary><pre>${esc(ev.excerpt)}</pre></details>` : ""));
   },
@@ -237,13 +253,10 @@ const HANDLERS = {
       box.appendChild(det);
     } else if (ULTRA.test(ev.model)) {
       add(head("ultra", "Nemotron Ultra", esc(ev.purpose), `${fmtTok(ev.prompt_tokens)} in · ${fmtTok(ev.completion_tokens)} out · ${ev.latency.toFixed(1)}s · ${fmtUsd(ev.cost)}`));
-    } else {
-      const last = [...feed().querySelectorAll(".ev")].pop();
-      if (last && ev.purpose === "read docs" && !$(".meta", last).dataset.filled) {
-        const m = $(".meta", last);
-        m.textContent += ` · ${ev.latency.toFixed(0)}s · ${fmtUsd(ev.cost)}`;
-        m.dataset.filled = "1";
-      }
+    } else if (ev.purpose === "read docs") {
+      // The docs card is emitted after Nano's call(s) finish; remember the time and cost for it.
+      const p = state.pendingDocs || { latency: 0, cost: 0 };
+      state.pendingDocs = { latency: p.latency + ev.latency, cost: p.cost + ev.cost };
     }
   },
   plan(ev) {

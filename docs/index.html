@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en" data-static="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bumpr: dependency upgrades that read the docs</title>
+<meta name="description" content="Bumpr upgrades a Python dependency, reads today's official docs, fixes what broke, and proves it with your tests. NVIDIA Nemotron on Nebius Token Factory + Tavily.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l7 7h-4v5H9v-5H5z" fill="currentColor"/><rect x="5" y="17" width="14" height="3" rx="1.5" fill="currentColor" opacity=".55"/></svg>
+    </span>
+    <span class="wordmark">bumpr</span>
+    <span class="tagline">Upgrade a dependency. Bumpr reads <em>today's</em> docs, fixes what broke, and proves it with your tests.</span>
+  </div>
+  <div class="stack">
+    <span class="chip">NVIDIA Nemotron 3 Ultra</span>
+    <span class="chip">Nemotron 3 Nano</span>
+    <span class="chip">Nebius Token Factory</span>
+    <span class="chip">Tavily</span>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="projects">
+    <h2 class="label">Projects to upgrade</h2>
+    <div id="samples"></div>
+    <div class="how">
+      <h3 class="label">How it works</h3>
+      <ol>
+        <li><b>Bump</b> the pin in an isolated virtualenv and run the tests.</li>
+        <li><b>Read the docs</b>: Tavily finds the official migration guide; Nemotron Nano reads the whole page and hands over only the relevant passages, verbatim, each checked against the source.</li>
+        <li><b>Think &amp; rewrite</b>: Nemotron Ultra plans every change and rewrites the files.</li>
+        <li><b>Prove it</b>: tests run again; failures go back to Ultra until everything is green.</li>
+        <li><b>Ship</b>: Nano writes the pull request; you get the patch.</li>
+      </ol>
+    </div>
+  </aside>
+
+  <section class="run" id="run">
+    <div class="empty" id="empty">
+      <div class="empty-inner">
+        <div class="big">Pick a project on the left.</div>
+        <p>Watch a recorded run (no credits used), or start a live run against Nemotron on Nebius Token Factory.</p>
+        <p class="muted">CLI for your own repo: <code>python -m bumpr path/to/repo pandas --to 3</code></p>
+      </div>
+    </div>
+
+    <div id="runview" hidden>
+      <div class="runhead">
+        <div>
+          <div class="runtitle" id="runtitle">-</div>
+          <div class="runsub" id="runsub"></div>
+        </div>
+        <div class="runmeta">
+          <span class="status" id="status">idle</span>
+          <span class="clock" id="clock">0:00</span>
+        </div>
+      </div>
+
+      <ol class="stepper" id="stepper"></ol>
+
+      <div class="meter">
+        <div class="meter-top">
+          <span class="label">Test suite</span>
+          <span class="meter-num" id="meternum">-</span>
+        </div>
+        <div class="bar" id="bar"><span class="seg pass"></span><span class="seg fail"></span><span class="seg err"></span></div>
+        <div class="history" id="history"></div>
+      </div>
+
+      <div class="controls" id="controls" hidden>
+        <span class="label">Replay speed</span>
+        <button data-speed="1">1x</button><button data-speed="4" class="on">4x</button><button data-speed="16">16x</button>
+        <button data-speed="skip">Skip to end</button>
+      </div>
+
+      <div class="feed" id="feed"></div>
+
+      <div class="result" id="result" hidden>
+        <div class="tabs">
+          <button class="tab on" data-tab="pr">Pull request</button>
+          <button class="tab" data-tab="diff">Diff</button>
+          <button class="tab" data-tab="sources">Sources</button>
+          <a class="download" id="download" download="bumpr.patch">Download .patch</a>
+        </div>
+        <div class="tabbody" id="tab-pr"></div>
+        <div class="tabbody" id="tab-diff" hidden></div>
+        <div class="tabbody" id="tab-sources" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="stats">
+    <h2 class="label">Model cascade</h2>
+    <div class="cascade" id="cascade">
+      <div class="model" data-model="ultra">
+        <div class="mname">Nemotron 3 Ultra <span class="mrole">plans &amp; rewrites code</span></div>
+        <div class="mbar"><span></span></div>
+        <div class="mnums"><span class="calls">0 calls</span><span class="toks">0 tok</span><span class="cost">$0.0000</span></div>
+      </div>
+      <div class="model" data-model="nano">
+        <div class="mname">Nemotron 3 Nano <span class="mrole">reads docs, writes the PR</span></div>
+        <div class="mbar"><span></span></div>
+        <div class="mnums"><span class="calls">0 calls</span><span class="toks">0 tok</span><span class="cost">$0.0000</span></div>
+      </div>
+    </div>
+    <div class="totals">
+      <div class="total"><span class="label">Run cost</span><span class="tnum" id="tcost">$0.0000</span></div>
+      <div class="total"><span class="label">If Ultra did everything</span><span class="tnum muted" id="tultra">$0.0000</span></div>
+      <div class="saving" id="saving"></div>
+    </div>
+
+    <h2 class="label">Live documentation</h2>
+    <div class="docstats">
+      <div><span class="tnum" id="nsearch">0</span><span class="label">Tavily searches</span></div>
+      <div><span class="tnum" id="npages">0</span><span class="label">pages read in full</span></div>
+      <div><span class="tnum" id="npass">0</span><span class="label">verbatim passages, source-checked</span></div>
+    </div>
+    <p class="note">Models are trained on yesterday's docs. Bumpr never relies on memory alone: every fix is grounded in the current official documentation and verified by your test suite.</p>
+    <p class="note" id="livenote"></p>
+  </aside>
+</main>
+
+<dialog id="codeDialog">
+  <form method="dialog">
+    <h3>Start a live run</h3>
+    <p>Live runs call Nemotron on Nebius Token Factory and Tavily in real time (about 2-5 minutes, a few cents of credits). Enter the access code from the submission's testing instructions.</p>
+    <input id="codeInput" type="password" placeholder="Access code" autocomplete="off">
+    <div class="dlg-actions">
+      <button value="cancel" class="ghost">Cancel</button>
+      <button value="ok" class="primary">Run live</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="localDialog">
+  <form method="dialog">
+    <h3>Run Bumpr yourself</h3>
+    <p>This hosted page replays real, unedited runs. Live runs need your own Nebius Token Factory and Tavily keys (Tavily's free tier is enough):</p>
+    <pre>git clone https://github.com/andrei-cicortas/bumpr
+cd bumpr
+pip install -r requirements.txt
+cp .env.example .env   # add NEBIUS_API_KEY, TAVILY_API_KEY
+
+# web UI with live runs
+uvicorn web.server:app --port 8000
+
+# or the CLI, on any repo with pytest + requirements.txt
+python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
+    <div class="dlg-actions">
+      <a class="ghost" href="https://github.com/andrei-cicortas/bumpr" target="_blank" rel="noopener">Open on GitHub</a>
+      <button value="ok" class="primary">Got it</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="static/app.js"></script>
+</body>
+</html>

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="static/style.css">
 </head>
 <body>
 <header class="top">
@@ -140,6 +140,27 @@
   </form>
 </dialog>
 
-<script src="/static/app.js"></script>
+<dialog id="localDialog">
+  <form method="dialog">
+    <h3>Run Bumpr yourself</h3>
+    <p>This hosted page replays real, unedited runs. Live runs need your own Nebius Token Factory and Tavily keys (Tavily's free tier is enough):</p>
+    <pre>git clone https://github.com/andrei-cicortas/bumpr
+cd bumpr
+pip install -r requirements.txt
+cp .env.example .env   # add NEBIUS_API_KEY, TAVILY_API_KEY
+
+# web UI with live runs
+uvicorn web.server:app --port 8000
+
+# or the CLI, on any repo with pytest + requirements.txt
+python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
+    <div class="dlg-actions">
+      <a class="ghost" href="https://github.com/andrei-cicortas/bumpr" target="_blank" rel="noopener">Open on GitHub</a>
+      <button value="ok" class="primary">Got it</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="static/app.js"></script>
 </body>
 </html>
