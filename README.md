@@ -88,7 +88,7 @@ sending the same calls to Ultra, while Ultra's context stays small (excerpts ins
 Requirements: Python 3.10+ and [uv](https://docs.astral.sh/uv/) (installed automatically from `requirements.txt`).
 
 ```bash
-git clone https://github.com/AndreiNOG17/bumpr && cd bumpr
+git clone https://github.com/andrei-cicortas/bumpr && cd bumpr
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                                   # add NEBIUS_API_KEY and TAVILY_API_KEY
