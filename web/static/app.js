@@ -29,18 +29,15 @@ let session = null; // {token, replayTimer, source}
 async function boot() {
   [config, samples] = await Promise.all([API.config(), API.samples()]);
   renderSamples();
-  $("#cta").addEventListener("click", () => startReplay("pandas-sales-report"));
-  $("#glossBtn").addEventListener("click", () => { $("#gloss").hidden = !$("#gloss").hidden; });
-  $("#devBtn").addEventListener("click", () => setMode("dev"));
-  document.querySelectorAll(".modes button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
-  setMode(mode);
+  setMode("dev");
   $("#livenote").textContent = config.static
     ? "This hosted page replays real, unedited event logs of runs against Nemotron on Nebius Token Factory. Use “Run it yourself” for live runs."
     : config.live
       ? "Live runs use real Nemotron calls on Nebius Token Factory; recordings replay a real run's event log."
       : "Live runs are switched off on this deployment; recordings replay a real run's event log, unedited.";
   const params = new URLSearchParams(location.search);
-  if (params.get("replay")) startReplay(params.get("replay"));
+  // Open straight into a real recorded run so there is never an empty "what now?" screen.
+  startReplay(params.get("replay") || "pandas-sales-report");
 }
 
 function renderSamples() {
@@ -152,8 +149,7 @@ function resume() {
 }
 
 // ---- view mode + guide card -------------------------------------------------------------------
-let mode = "simple";
-try { mode = localStorage.getItem("bumpr-mode") || "simple"; } catch { /* storage unavailable */ }
+let mode = "dev";
 
 function setMode(m) {
   mode = m;
