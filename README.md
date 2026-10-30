@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/result.jpg" alt="Bumpr after upgrading pandas 2.2 to 3.1: 0 of 7 tests passed after the upgrade, 7 of 7 after Bumpr">
+  <img src="assets/demo.gif" alt="Bumpr upgrading pandas 2.2 to 3.1: 0 of 7 tests pass after the upgrade; Bumpr reads the official docs with Nemotron Nano, Nemotron Ultra rewrites the code, and all 7 pass">
 </p>
 
 <p align="center"><sub>pandas 2.2 → 3.1: after the upgrade 0 of 7 tests pass. Bumpr gets all 7 green in under four minutes, for 3.5 cents.
