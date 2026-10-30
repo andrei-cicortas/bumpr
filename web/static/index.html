@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="static/style.css?v=5">
+<link rel="stylesheet" href="static/style.css?v=6">
 </head>
 <body>
 <header class="top">
@@ -29,7 +29,7 @@
 
 <main class="layout">
   <aside class="projects">
-    <h2 class="label">Projects to upgrade</h2>
+    <h2 class="label">Examples (same idea, different libraries)</h2>
     <div id="samples"></div>
     <div class="how">
       <h3 class="label">How it works</h3>
@@ -46,20 +46,40 @@
   <section class="run" id="run">
     <div class="empty" id="empty">
       <div class="empty-inner">
-        <h1 class="hero">Library upgrades break code.<br>Bumpr fixes it, and proves the fix.</h1>
-        <p class="lede">Your app depends on a library, say <b>pandas</b>. Its new major version renames and removes
-          functions, so after upgrading, your tests fail. Bumpr does what a developer would do by hand: it reads the
-          library's <b>current official docs</b>, rewrites your code with <b>NVIDIA Nemotron</b>, and re-runs your
-          tests until they all pass.</p>
-        <ol class="flow">
-          <li><span class="n">1</span><b>Upgrade</b><span>pandas 2.2 → 3.1</span><em class="bad">0 / 7 tests pass</em></li>
-          <li><span class="n">2</span><b>Read the docs</b><span>Tavily finds the official migration guide; Nemotron Nano pulls out what matters</span></li>
-          <li><span class="n">3</span><b>Rewrite</b><span>Nemotron Ultra plans the fix and edits the code</span><code>.fillna(method="ffill") → .ffill()</code></li>
-          <li><span class="n">4</span><b>Prove it</b><span>Tests re-run until green; you get a pull request</span><em class="good">7 / 7 tests pass</em></li>
+        <h1 class="hero">When a software library gets a big update, apps break.<br>Bumpr repairs them automatically, and proves the repair works.</h1>
+
+        <div class="analogy">
+          <b>Think of a car.</b> The manufacturer redesigns a part, and your car no longer starts. A mechanic would
+          read the new manual, change what's needed, and test-drive the car. <b>Bumpr does the same for software:</b>
+          it reads the library's new official manual, rewrites the code with NVIDIA's Nemotron AI, and "test-drives"
+          it with automatic checks until every check passes again.
+        </div>
+
+        <h2 class="howto-title">How to use this page</h2>
+        <ol class="howto">
+          <li><span class="n">1</span><div><b>Press the big green button</b> below.</div></li>
+          <li><span class="n">2</span><div><b>Watch Bumpr work</b> for about a minute. The green bar at the top always says what it is doing, in plain English.</div></li>
+          <li><span class="n">3</span><div><b>See the result</b>: the app is broken at first (<span class="bad">0 of 7 checks pass</span>), fixed at the end (<span class="good">7 of 7 pass</span>), and you can see exactly which lines of code changed.</div></li>
         </ol>
-        <button class="primary cta" id="cta">▶ Watch it upgrade pandas 2 → 3</button>
-        <p class="muted small">A real, unedited recording (about 1 minute at 4x). Or pick any project on the left.<br>
-          On your own repo: <code>python -m bumpr path/to/repo pandas --to 3</code></p>
+
+        <button class="primary cta" id="cta">▶ Start the demo: repair an app broken by the pandas 3 update</button>
+        <p class="muted small">This replays a real, unedited run. Nothing to install, nothing to type.</p>
+
+        <details class="glossary">
+          <summary>Words you will see, explained</summary>
+          <dl>
+            <dt>Library</dt><dd>Ready-made code that many apps reuse. <b>pandas</b> works with tables of data, a bit like Excel inside a program.</dd>
+            <dt>Upgrade</dt><dd>Moving to a new edition of a library (pandas 2 → pandas 3). Big editions rename or remove things, which breaks apps.</dd>
+            <dt>Tests (checks)</dt><dd>Small automatic checks that the app still gives the right answers, e.g. "revenue for March is 180". Green = passed, red = failed.</dd>
+            <dt>Documentation (docs)</dt><dd>The library's official manual, published on its website.</dd>
+            <dt>Nemotron Ultra / Nano</dt><dd>NVIDIA's AI models. Ultra is the big one that thinks and writes code; Nano is a small, cheap one that reads the manual.</dd>
+            <dt>Tavily</dt><dd>A search engine built for AI: it finds and fetches the right documentation page.</dd>
+            <dt>Diff</dt><dd>A before/after view of code: red lines were removed, green lines were added.</dd>
+          </dl>
+        </details>
+
+        <p class="muted small">Developers: the left column has more examples (pydantic, SQLAlchemy). Run it on your own code with
+          <code>python -m bumpr path/to/repo pandas --to 3</code>.</p>
       </div>
     </div>
 
@@ -82,6 +102,7 @@
         <div><span class="label">AI cost</span><span class="sum-big" id="sumCost">$0.00</span></div>
       </div>
       <p class="nowline" id="nowline">Starting…</p>
+      <div class="result-plain" id="resultPlain" hidden></div>
 
       <ol class="stepper" id="stepper"></ol>
 
@@ -117,7 +138,8 @@
   </section>
 
   <aside class="stats">
-    <h2 class="label">Model cascade</h2>
+    <h2 class="label">AI models at work</h2>
+    <p class="note" style="margin-top:-4px">Two NVIDIA Nemotron models share the job: the big one thinks and writes code, the small one reads the manual. Cheaper and faster than using the big one for everything.</p>
     <div class="cascade" id="cascade">
       <div class="model" data-model="ultra">
         <div class="mname">Nemotron 3 Ultra <span class="mrole">plans &amp; rewrites code</span></div>
@@ -136,7 +158,7 @@
       <div class="saving" id="saving"></div>
     </div>
 
-    <h2 class="label">Live documentation</h2>
+    <h2 class="label">Documentation read</h2>
     <div class="docstats">
       <div><span class="tnum" id="nsearch">0</span><span class="label">Tavily searches</span></div>
       <div><span class="tnum" id="npages">0</span><span class="label">pages read in full</span></div>
@@ -180,6 +202,6 @@ python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
   </form>
 </dialog>
 
-<script src="static/app.js?v=5"></script>
+<script src="static/app.js?v=6"></script>
 </body>
 </html>

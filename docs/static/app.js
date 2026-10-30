@@ -48,7 +48,7 @@ function renderSamples() {
       <div class="ver">${esc(s.from)} <b>→</b> ${esc(s.to)}</div>
       <p>${esc(s.blurb)}</p>${rec}
       <div class="btns">
-        <button class="ghost" data-act="replay" ${r ? "" : "disabled"}>Watch recording</button>
+        <button class="ghost" data-act="replay" ${r ? "" : "disabled"}>▶ Watch</button>
         ${config.static
           ? `<button class="primary" data-act="local">Run it yourself</button>`
           : `<button class="primary" data-act="live" ${config.live ? "" : "disabled title='Live runs are disabled here'"}>Run live</button>`}
@@ -88,6 +88,7 @@ function resetView(name) {
   for (const id of ["#sumBroken", "#sumNow"]) $(id).textContent = "-";
   $("#sumLines").textContent = "0";
   $("#nowline").className = "nowline";
+  $("#resultPlain").hidden = true;
   $("#nowline").textContent = "Starting…";
   document.querySelectorAll("#controls button").forEach((b) => b.classList.toggle("on", b.dataset.speed === "4"));
   window.scrollTo({ top: 0 });
@@ -220,7 +221,7 @@ const HANDLERS = {
     if (ev.label === "final") return;
     const pill = ev.green ? `<span class="pill g">${ev.passed} passed</span>` :
       `<span class="pill r">${ev.passed} passed · ${ev.failed} failed · ${ev.errors} errors</span>`;
-    const why = ev.label === "baseline" ? `All tests pass on the old version: this is the behaviour Bumpr must keep.`
+    const why = ev.label === "baseline" ? `Tests are automatic checks that the app gives the right answers. On the old version all of them pass: this is the behaviour Bumpr must keep.`
       : ev.green ? `Every test passes on the new version.`
       : state.runs === 2 ? `Same code, same tests, new library version: this is what the upgrade broke.`
       : `Progress check after Ultra's rewrite.`;
@@ -312,6 +313,21 @@ const HANDLERS = {
       const lines = ev.diff.split("\n").filter((l) => !/^(\+\+\+|---)/.test(l));
       $("#sumLines").textContent = `+${lines.filter((l) => l.startsWith("+")).length} −${lines.filter((l) => l.startsWith("-")).length}`;
       showResult(ev);
+    }
+    if (ev.success && ev.diff) {
+      const files = ev.diff.split("\n").filter((l) => l.startsWith("+++ b/") && !l.includes("requirements")).length;
+      const changed = ev.diff.split("\n").filter((l) => !/^(\+\+\+|---)/.test(l));
+      const body = Math.max(changed.filter((l) => l.startsWith("+")).length, changed.filter((l) => l.startsWith("-")).length);
+      const cost = ev.usage ? ev.usage.total_cost : 0;
+      const before = state.broken ? state.broken.passed : 0;
+      const pages = state.pages;
+      $("#resultPlain").innerHTML =
+        `<b>Repaired.</b> Right after the ${esc(ev.package)} ${esc(ev.new)} update, only ${before} of ${ev.total} automatic ` +
+        `checks passed: the app was broken. Bumpr read ${pages} page${pages === 1 ? "" : "s"} of the official ${esc(ev.package)} ` +
+        `documentation, rewrote ${body} lines of code in ${files} file${files === 1 ? "" : "s"}, and now <b>all ${ev.final.passed} ` +
+        `checks pass</b>. It took ${fmtTime(ev.elapsed)} and about ${(cost * 100).toFixed(1)} cents of AI usage. ` +
+        `Scroll down for Bumpr's report and every changed line.`;
+      $("#resultPlain").hidden = false;
     }
     const nl = $("#nowline");
     nl.classList.toggle("done", !!ev.success);

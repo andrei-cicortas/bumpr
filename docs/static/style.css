@@ -195,3 +195,23 @@ dialog input { width: 100%; padding: 9px 10px; border-radius: 7px; border: 1px s
 .nowline { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--panel); border-radius: 0 8px 8px 0; font-size: 14px; }
 .nowline.done { border-color: var(--pass); }
 .explain { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+
+/* non-programmer onboarding */
+.analogy { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--info); border-radius: 0 10px 10px 0; padding: 12px 16px; font-size: 14.5px; color: var(--muted); margin: 0 0 22px; }
+.analogy b { color: var(--text); }
+.howto-title { font-size: 16px; margin: 0 0 10px; }
+.howto { list-style: none; padding: 0; margin: 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
+.howto li { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; color: var(--muted); }
+.howto li b { color: var(--text); }
+.howto .n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 700; display: grid; place-items: center; font-size: 12.5px; margin-top: 1px; }
+.cta { font-size: 16px; padding: 13px 20px; width: 100%; margin: 4px 0 6px; }
+.glossary { margin: 18px 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.glossary summary { font-size: 14px; color: var(--text); font-weight: 600; margin: 0; }
+.glossary dl { margin: 10px 0 2px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 13px; }
+@media (max-width: 600px) { .glossary dl { grid-template-columns: 1fr; } }
+.glossary dt { font-weight: 600; }
+.glossary dd { margin: 0; color: var(--muted); }
+.glossary dd b { color: var(--text); }
+.nowline { font-size: 15px; }
+.result-plain { background: rgba(63,185,80,.08); border: 1px solid #1d5c2a; border-radius: 10px; padding: 12px 16px; margin: -4px 0 14px; font-size: 14.5px; line-height: 1.6; }
+.result-plain b { color: var(--pass); }
