@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="static/style.css?v=6">
+<link rel="stylesheet" href="static/style.css?v=9">
 </head>
 <body>
 <header class="top">
@@ -17,9 +17,12 @@
       <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l7 7h-4v5H9v-5H5z" fill="currentColor"/><rect x="5" y="17" width="14" height="3" rx="1.5" fill="currentColor" opacity=".55"/></svg>
     </span>
     <span class="wordmark">bumpr</span>
-    <span class="tagline">Upgrade a dependency. Bumpr reads <em>today's</em> docs, fixes what broke, and proves it with your tests.</span>
+    <span class="tagline dev">Upgrade a dependency. Bumpr reads <em>today's</em> docs, fixes what broke, and proves it with your tests.</span>
   </div>
-  <div class="stack">
+  <div class="modes" role="group" aria-label="View">
+    <button data-mode="simple" class="on">Simple</button><button data-mode="dev">Developer</button>
+  </div>
+  <div class="stack dev">
     <span class="chip">NVIDIA Nemotron 3 Ultra</span>
     <span class="chip">Nemotron 3 Nano</span>
     <span class="chip">Nebius Token Factory</span>
@@ -45,41 +48,27 @@
 
   <section class="run" id="run">
     <div class="empty" id="empty">
-      <div class="empty-inner">
-        <h1 class="hero">When a software library gets a big update, apps break.<br>Bumpr repairs them automatically, and proves the repair works.</h1>
-
-        <div class="analogy">
-          <b>Think of a car.</b> The manufacturer redesigns a part, and your car no longer starts. A mechanic would
-          read the new manual, change what's needed, and test-drive the car. <b>Bumpr does the same for software:</b>
-          it reads the library's new official manual, rewrites the code with NVIDIA's Nemotron AI, and "test-drives"
-          it with automatic checks until every check passes again.
+      <div class="empty-inner start">
+        <h1 class="hero">Software updates break apps.<br><span class="hl">Bumpr fixes them automatically.</span></h1>
+        <p class="sub">Like a mechanic who reads the new manual, fixes the car, and test-drives it.</p>
+        <div class="tiles">
+          <div class="tile"><div class="ico">💥</div><b>An update breaks the app</b></div>
+          <div class="tarrow">→</div>
+          <div class="tile"><div class="ico">📖</div><b>AI reads the new manual</b></div>
+          <div class="tarrow">→</div>
+          <div class="tile"><div class="ico">✅</div><b>Fixes the code and proves it works</b></div>
         </div>
-
-        <h2 class="howto-title">How to use this page</h2>
-        <ol class="howto">
-          <li><span class="n">1</span><div><b>Press the big green button</b> below.</div></li>
-          <li><span class="n">2</span><div><b>Watch Bumpr work</b> for about a minute. The green bar at the top always says what it is doing, in plain English.</div></li>
-          <li><span class="n">3</span><div><b>See the result</b>: the app is broken at first (<span class="bad">0 of 7 checks pass</span>), fixed at the end (<span class="good">7 of 7 pass</span>), and you can see exactly which lines of code changed.</div></li>
-        </ol>
-
-        <button class="primary cta" id="cta">▶ Start the demo: repair an app broken by the pandas 3 update</button>
-        <p class="muted small">This replays a real, unedited run. Nothing to install, nothing to type.</p>
-
-        <details class="glossary">
-          <summary>Words you will see, explained</summary>
-          <dl>
-            <dt>Library</dt><dd>Ready-made code that many apps reuse. <b>pandas</b> works with tables of data, a bit like Excel inside a program.</dd>
-            <dt>Upgrade</dt><dd>Moving to a new edition of a library (pandas 2 → pandas 3). Big editions rename or remove things, which breaks apps.</dd>
-            <dt>Tests (checks)</dt><dd>Small automatic checks that the app still gives the right answers, e.g. "revenue for March is 180". Green = passed, red = failed.</dd>
-            <dt>Documentation (docs)</dt><dd>The library's official manual, published on its website.</dd>
-            <dt>Nemotron Ultra / Nano</dt><dd>NVIDIA's AI models. Ultra is the big one that thinks and writes code; Nano is a small, cheap one that reads the manual.</dd>
-            <dt>Tavily</dt><dd>A search engine built for AI: it finds and fetches the right documentation page.</dd>
-            <dt>Diff</dt><dd>A before/after view of code: red lines were removed, green lines were added.</dd>
-          </dl>
-        </details>
-
-        <p class="muted small">Developers: the left column has more examples (pydantic, SQLAlchemy). Run it on your own code with
-          <code>python -m bumpr path/to/repo pandas --to 3</code>.</p>
+        <button class="primary cta" id="cta">▶ Show me</button>
+        <div class="start-links">
+          <button class="linkbtn" id="glossBtn">What do the words mean?</button>
+          <button class="linkbtn" id="devBtn">I'm a developer</button>
+        </div>
+        <dl class="glossary" id="gloss" hidden>
+          <dt>Library</dt><dd>Ready-made code that apps reuse (pandas = tables of data, like Excel inside a program).</dd>
+          <dt>Checks (tests)</dt><dd>Automatic checks that the app gives the right answers. Green = pass, red = fail.</dd>
+          <dt>Manual (docs)</dt><dd>The library's official documentation website.</dd>
+          <dt>Nemotron</dt><dd>NVIDIA's AI. Ultra (big) writes the code, Nano (small) reads the manual.</dd>
+        </dl>
       </div>
     </div>
 
@@ -96,19 +85,20 @@
       </div>
 
       <div class="summary">
-        <div><span class="label">Tests after upgrade</span><span class="sum-big" id="sumBroken">-</span></div>
-        <div><span class="label">Tests now</span><span class="sum-big" id="sumNow">-</span></div>
+        <div><span class="label">Checks passing after the update</span><span class="sum-big" id="sumBroken">-</span></div>
+        <div><span class="label">Checks passing now</span><span class="sum-big" id="sumNow">-</span></div>
         <div><span class="label">Lines of code changed</span><span class="sum-big" id="sumLines">0</span></div>
         <div><span class="label">AI cost</span><span class="sum-big" id="sumCost">$0.00</span></div>
       </div>
-      <p class="nowline" id="nowline">Starting…</p>
+      <div class="guide" id="guide"></div>
+      <p class="nowline dev" id="nowline">Starting…</p>
       <div class="result-plain" id="resultPlain" hidden></div>
 
       <ol class="stepper" id="stepper"></ol>
 
       <div class="meter">
         <div class="meter-top">
-          <span class="label">Test suite</span>
+          <span class="label">Automatic checks (tests)</span>
           <span class="meter-num" id="meternum">-</span>
         </div>
         <div class="bar" id="bar"><span class="seg pass"></span><span class="seg fail"></span><span class="seg err"></span></div>
@@ -202,6 +192,6 @@ python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
   </form>
 </dialog>
 
-<script src="static/app.js?v=6"></script>
+<script src="static/app.js?v=9"></script>
 </body>
 </html>

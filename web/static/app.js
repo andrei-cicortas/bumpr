@@ -30,6 +30,10 @@ async function boot() {
   [config, samples] = await Promise.all([API.config(), API.samples()]);
   renderSamples();
   $("#cta").addEventListener("click", () => startReplay("pandas-sales-report"));
+  $("#glossBtn").addEventListener("click", () => { $("#gloss").hidden = !$("#gloss").hidden; });
+  $("#devBtn").addEventListener("click", () => setMode("dev"));
+  document.querySelectorAll(".modes button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  setMode(mode);
   $("#livenote").textContent = config.static
     ? "This hosted page replays real, unedited event logs of runs against Nemotron on Nebius Token Factory. Use “Run it yourself” for live runs."
     : config.live
@@ -68,7 +72,8 @@ function renderSamples() {
 function resetView(name) {
   if (session?.replayTimer) clearTimeout(session.replayTimer);
   if (session?.source) session.source.close();
-  session = { token: Symbol(), speed: 4, skip: false };
+  session = { token: Symbol(), speed: mode === "simple" ? 2 : 4, skip: false };
+  $("#guide").innerHTML = "";
   document.querySelectorAll(".card").forEach((c) => c.classList.toggle("active", c.dataset.name === name));
   $("#empty").hidden = true;
   $("#runview").hidden = false;
@@ -87,7 +92,7 @@ function resetView(name) {
 
   for (const id of ["#sumBroken", "#sumNow"]) $(id).textContent = "-";
   $("#sumLines").textContent = "0";
-  $("#nowline").className = "nowline";
+  $("#nowline").className = "nowline dev";
   $("#resultPlain").hidden = true;
   $("#nowline").textContent = "Starting…";
   document.querySelectorAll("#controls button").forEach((b) => b.classList.toggle("on", b.dataset.speed === "4"));
@@ -108,6 +113,7 @@ function setStatus(cls, text) {
 // ---------------------------------------------------------------------------------------------
 async function startReplay(name) {
   resetView(name);
+  session.replaying = true;
   $("#controls").hidden = false;
   const data = await API.replay(name);
   const token = session.token;
@@ -118,13 +124,63 @@ async function startReplay(name) {
     if (i >= events.length) return;
     const ev = events[i++];
     handle(ev);
-    if (i < events.length) {
+    const next = () => {
+      if (session.token !== token || i >= events.length) return;
       const gap = Math.max(0, events[i].t - ev.t);
       const wait = session.skip ? 0 : Math.min(gap, 2.5) * 1000 / session.speed;
       session.replayTimer = setTimeout(tick, wait);
-    }
+    };
+    // In the simple view the replay pauses at each milestone until the viewer presses Continue.
+    if (session.paused) session.resume = next; else next();
   };
   tick();
+}
+
+function resume() {
+  if (!session?.paused) return;
+  session.paused = false;
+  const go = session.resume;
+  session.resume = null;
+  if (go) go();
+}
+
+// ---- view mode + guide card -------------------------------------------------------------------
+let mode = "simple";
+try { mode = localStorage.getItem("bumpr-mode") || "simple"; } catch { /* storage unavailable */ }
+
+function setMode(m) {
+  mode = m;
+  document.body.classList.toggle("simple", m === "simple");
+  document.querySelectorAll(".modes button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+  try { localStorage.setItem("bumpr-mode", m); } catch { /* storage unavailable */ }
+  if (m !== "simple") resume();
+}
+
+function activity(text) {
+  if (session?.paused) return;
+  const g = $("#guide");
+  g.className = "guide g-activity";
+  g.innerHTML = `<div class="spinner"></div><div class="g-body"><div class="g-text">${text}</div></div>`;
+}
+
+function milestone(icon, html, extra = "") {
+  const g = $("#guide");
+  const pause = session?.replaying && mode === "simple" && !session.skip;
+  g.className = "guide";
+  g.innerHTML = `<div class="g-icon">${icon}</div><div class="g-body"><div class="g-text">${html}</div>${extra}` +
+    (pause ? `<div class="g-actions"><button class="primary" id="gNext">Continue ▶</button>` +
+      `<button class="linkbtn" id="gSkip">Skip to the result</button></div>` : "") + `</div>`;
+  if (pause) {
+    session.paused = true;
+    $("#gNext").onclick = resume;
+    $("#gSkip").onclick = () => { session.skip = true; resume(); };
+    $("#gNext").focus({ preventScroll: true });
+  }
+}
+
+function miniDiff(diff, max = 12) {
+  const lines = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l)).slice(0, max);
+  return `<pre class="diff g-mini">${diffHtml(lines.join("\n"))}</pre>`;
 }
 
 document.addEventListener("click", (e) => {
@@ -193,6 +249,7 @@ const HANDLERS = {
     });
     const label = STEPS[idx]?.[1] || ev.phase;
     if (PLAIN[ev.phase]) $("#nowline").textContent = PLAIN[ev.phase](ev);
+    if (SIMPLE[ev.phase]) activity(SIMPLE[ev.phase](ev));
     const d = document.createElement("div");
     d.className = "divider";
     d.innerHTML = `${esc(label)} <span>${esc(ev.detail)}</span>`;
@@ -209,9 +266,19 @@ const HANDLERS = {
     updateMeter(ev);
     const score = `${ev.passed} / ${state.total || ev.passed + ev.failed}`;
     $("#sumNow").innerHTML = `<span class="${ev.green ? "good" : "bad"}">${score}</span>`;
-    if (ev.label !== "baseline" && state.broken === undefined) {
+    const n = state.total || ev.passed + ev.failed;
+    const pkg = state.pkg ? `${state.pkg.package} ${state.pkg.new.split(".")[0]}` : "the new version";
+    if (ev.label === "baseline") {
+      milestone("✅", `<b>Before the update</b>, the app works: all ${n} automatic checks pass.`);
+    } else if (state.broken === undefined) {
       state.broken = ev;
       $("#sumBroken").innerHTML = `<span class="bad">${score}</span>`;
+      if (!ev.green) milestone("💥", `After updating to <b>${esc(pkg)}</b>, only ${ev.passed} of ${n} checks pass. <b>The app is broken.</b>`);
+    } else if (ev.green && !state.fixed) {
+      state.fixed = true;
+      milestone("🎉", `<b>Fixed!</b> All ${n} of ${n} checks pass again.`);
+    } else if (!ev.green && ev.label !== "final") {
+      milestone("🔁", `Better, but not done: ${ev.passed} of ${n} checks pass. Bumpr reads the new error and tries again.`);
     }
     const tag = ev.label === "baseline" ? "baseline" : ev.label === "final" ? "final" : `run ${state.runs}`;
     const h = document.createElement("span");
@@ -245,6 +312,10 @@ const HANDLERS = {
   docs(ev) {
     state.pages += 1;
     state.passages += ev.passages;
+    if (state.pages === 1 && state.pkg) {
+      milestone("📖", `Bumpr found the <b>official ${esc(state.pkg.package)} manual</b> online. A small AI (Nemotron Nano) ` +
+        `read all of it and picked out the ${ev.passages} part${ev.passages === 1 ? "" : "s"} this app needs.`);
+    }
     updateStats();
     const url = ev.url.replace(/^https?:\/\//, "");
     const p = state.pendingDocs;
@@ -298,6 +369,11 @@ const HANDLERS = {
     const lines = ev.diff.split("\n").filter((l) => !/^(\+\+\+|---)/.test(l));
     const adds = lines.filter((l) => l.startsWith("+")).length, dels = lines.filter((l) => l.startsWith("-")).length;
     const n = adds + dels;
+    if (!state.edited) {
+      state.edited = true;
+      milestone("🛠️", `A big AI (Nemotron Ultra) <b>rewrote the code</b>. <span class="bad">Red</span> = old, <span class="good">green</span> = new:`,
+        miniDiff(ev.diff));
+    }
     add(head("ultra", "Rewrote", `<code>${esc(ev.path)}</code>`, `+${adds} −${dels}`) +
       `<div class="explain">Red lines are the old code, green lines the new code.</div>` +
       `<details ${n <= 40 ? "open" : ""}><summary>diff</summary><pre class="diff">${diffHtml(ev.diff)}</pre></details>`);
@@ -329,12 +405,44 @@ const HANDLERS = {
         `Scroll down for Bumpr's report and every changed line.`;
       $("#resultPlain").hidden = false;
     }
+    if (ev.success) {
+      const g = $("#guide");
+      const cost = ev.usage ? ev.usage.total_cost : 0;
+      const before = state.broken ? state.broken.passed : 0;
+      g.className = "guide final";
+      g.innerHTML = `<div class="g-icon">🎉</div><div class="g-body"><div class="g-text">` +
+        `<b>Repaired:</b> from <span class="bad">${before} of ${ev.total}</span> checks passing to ` +
+        `<span class="good">${ev.final.passed} of ${ev.total}</span>, in ${fmtTime(ev.elapsed)}, for ${(cost * 100).toFixed(1)} cents.</div>` +
+        `<div class="g-actions"><button class="primary" id="gDiff">See every code change</button>` +
+        `<button class="ghost" id="gAgain">Watch another example</button>` +
+        `<button class="ghost" id="gDev">Show technical details</button></div></div>`;
+      $("#gDiff").onclick = () => {
+        document.querySelector('.tab[data-tab="diff"]').click();
+        $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+      };
+      const others = samples.map((s) => s.name).filter((nm) => nm !== document.querySelector(".card.active")?.dataset.name);
+      $("#gAgain").onclick = () => startReplay(others[0] || samples[0].name);
+      $("#gDev").onclick = () => setMode("dev");
+    }
     const nl = $("#nowline");
     nl.classList.toggle("done", !!ev.success);
     nl.textContent = ev.success
       ? `Done in ${fmtTime(ev.elapsed)}: all ${ev.final.passed} tests pass on ${ev.package} ${ev.new}. The pull request and the code changes are below.`
       : "The run stopped before every test passed. The log above shows how far it got.";
   },
+};
+
+// Short activity lines for the simple view.
+const SIMPLE = {
+  setup: () => "Getting the app ready…",
+  baseline: () => "Checking that the app works before the update…",
+  bump: () => "Installing the update…",
+  break: () => "Checking the app after the update…",
+  research: (ev) => ev.detail.startsWith("Looking up") ? "New error: looking it up in the official manual…"
+    : "Searching the web for the official manual…",
+  fix: () => "The AI is rewriting the code…",
+  verify: () => "Running every check one last time…",
+  report: () => "Writing the report…",
 };
 
 // One plain-English sentence per step, shown above the timeline.
@@ -404,7 +512,8 @@ function showResult(ev) {
   const blob = new Blob([ev.diff], { type: "text/x-diff" });
   $("#download").href = URL.createObjectURL(blob);
   $("#download").download = `bumpr-${ev.package}-${ev.new}.patch`;
-  if (!session?.skip) $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!session?.skip && mode !== "simple") $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (mode === "simple") window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 document.addEventListener("click", (e) => {
