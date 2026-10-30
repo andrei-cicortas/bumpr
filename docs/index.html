@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="static/style.css">
+<link rel="stylesheet" href="static/style.css?v=4">
 </head>
 <body>
 <header class="top">
@@ -46,9 +46,20 @@
   <section class="run" id="run">
     <div class="empty" id="empty">
       <div class="empty-inner">
-        <div class="big">Pick a project on the left.</div>
-        <p>Watch a recorded run (no credits used), or start a live run against Nemotron on Nebius Token Factory.</p>
-        <p class="muted">CLI for your own repo: <code>python -m bumpr path/to/repo pandas --to 3</code></p>
+        <h1 class="hero">Library upgrades break code.<br>Bumpr fixes it, and proves the fix.</h1>
+        <p class="lede">Your app depends on a library, say <b>pandas</b>. Its new major version renames and removes
+          functions, so after upgrading, your tests fail. Bumpr does what a developer would do by hand: it reads the
+          library's <b>current official docs</b>, rewrites your code with <b>NVIDIA Nemotron</b>, and re-runs your
+          tests until they all pass.</p>
+        <ol class="flow">
+          <li><span class="n">1</span><b>Upgrade</b><span>pandas 2.2 → 3.1</span><em class="bad">0 / 7 tests pass</em></li>
+          <li><span class="n">2</span><b>Read the docs</b><span>Tavily finds the official migration guide; Nemotron Nano pulls out what matters</span></li>
+          <li><span class="n">3</span><b>Rewrite</b><span>Nemotron Ultra plans the fix and edits the code</span><code>.fillna(method="ffill") → .ffill()</code></li>
+          <li><span class="n">4</span><b>Prove it</b><span>Tests re-run until green; you get a pull request</span><em class="good">7 / 7 tests pass</em></li>
+        </ol>
+        <button class="primary cta" id="cta">▶ Watch it upgrade pandas 2 → 3</button>
+        <p class="muted small">A real, unedited recording (about 1 minute at 4x). Or pick any project on the left.<br>
+          On your own repo: <code>python -m bumpr path/to/repo pandas --to 3</code></p>
       </div>
     </div>
 
@@ -63,6 +74,15 @@
           <span class="clock" id="clock">0:00</span>
         </div>
       </div>
+
+      <div class="summary">
+        <div><span class="label">Library</span><span class="sum-big" id="sumLib">-</span></div>
+        <div><span class="label">Tests after upgrade</span><span class="sum-big" id="sumBroken">-</span></div>
+        <div><span class="label">Tests now</span><span class="sum-big" id="sumNow">-</span></div>
+        <div><span class="label">Lines of code changed</span><span class="sum-big" id="sumLines">0</span></div>
+        <div><span class="label">AI cost</span><span class="sum-big" id="sumCost">$0.00</span></div>
+      </div>
+      <p class="nowline" id="nowline">Starting…</p>
 
       <ol class="stepper" id="stepper"></ol>
 
@@ -161,6 +181,6 @@ python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
   </form>
 </dialog>
 
-<script src="static/app.js"></script>
+<script src="static/app.js?v=4"></script>
 </body>
 </html>

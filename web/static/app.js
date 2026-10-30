@@ -29,6 +29,7 @@ let session = null; // {token, replayTimer, source}
 async function boot() {
   [config, samples] = await Promise.all([API.config(), API.samples()]);
   renderSamples();
+  $("#cta").addEventListener("click", () => startReplay("pandas-sales-report"));
   $("#livenote").textContent = config.static
     ? "This hosted page replays real, unedited event logs of runs against Nemotron on Nebius Token Factory. Use “Run it yourself” for live runs."
     : config.live
@@ -83,6 +84,13 @@ function resetView(name) {
   updateMeter(null);
   updateStats();
   $("#clock").textContent = "0:00";
+  $("#sumLib").textContent = `${s.from} → ${s.to}`;
+  for (const id of ["#sumBroken", "#sumNow"]) $(id).textContent = "-";
+  $("#sumLines").textContent = "0";
+  $("#nowline").className = "nowline";
+  $("#nowline").textContent = "Starting…";
+  document.querySelectorAll("#controls button").forEach((b) => b.classList.toggle("on", b.dataset.speed === "4"));
+  window.scrollTo({ top: 0 });
 }
 
 let state = freshState();
@@ -183,18 +191,27 @@ const HANDLERS = {
       li.classList.toggle("now", i === idx);
     });
     const label = STEPS[idx]?.[1] || ev.phase;
+    if (PLAIN[ev.phase]) $("#nowline").textContent = PLAIN[ev.phase](ev);
     const d = document.createElement("div");
     d.className = "divider";
     d.innerHTML = `${esc(label)} <span>${esc(ev.detail)}</span>`;
     feed().appendChild(d);
   },
   versions(ev) {
+    state.pkg = ev;
     $("#runtitle").innerHTML = `${esc(ev.package)} ${esc(ev.old)} <span class="arrow">→</span> ${esc(ev.new)}`;
+    $("#sumLib").textContent = `${ev.package} ${ev.old.split(".").slice(0, 2).join(".")} → ${ev.new.split(".").slice(0, 2).join(".")}`;
   },
   tests(ev) {
     state.runs += 1;
     if (ev.label === "baseline") state.total = ev.passed;
     updateMeter(ev);
+    const score = `${ev.passed} / ${state.total || ev.passed + ev.failed}`;
+    $("#sumNow").innerHTML = `<span class="${ev.green ? "good" : "bad"}">${score}</span>`;
+    if (ev.label !== "baseline" && state.broken === undefined) {
+      state.broken = ev;
+      $("#sumBroken").innerHTML = `<span class="bad">${score}</span>`;
+    }
     const tag = ev.label === "baseline" ? "baseline" : ev.label === "final" ? "final" : `run ${state.runs}`;
     const h = document.createElement("span");
     h.className = `hrun ${ev.green ? "g" : "r"}`;
@@ -203,11 +220,16 @@ const HANDLERS = {
     if (ev.label === "final") return;
     const pill = ev.green ? `<span class="pill g">${ev.passed} passed</span>` :
       `<span class="pill r">${ev.passed} passed · ${ev.failed} failed · ${ev.errors} errors</span>`;
-    add(head(ev.green ? "test" : "bad", "pytest", pill, `${ev.duration ? ev.duration.toFixed(2) + "s" : ""}`));
+    const why = ev.label === "baseline" ? `All tests pass on the old version: this is the behaviour Bumpr must keep.`
+      : ev.green ? `Every test passes on the new version.`
+      : state.runs === 2 ? `Same code, same tests, new library version: this is what the upgrade broke.`
+      : `Progress check after Ultra's rewrite.`;
+    add(head(ev.green ? "test" : "bad", "Tests", pill, `${ev.duration ? ev.duration.toFixed(2) + "s" : ""}`) +
+      `<div class="explain">${why}</div>`);
   },
   triage(ev) {
     const lines = ev.digest.split("\n");
-    add(head("bad", "Failure log", "key lines") +
+    add(head("bad", "Error log", "what broke") +
       `<pre class="keys">${esc(lines.slice(0, 8).join("\n"))}</pre>` +
       (lines.length > 8 ? `<details><summary>${lines.length - 8} more lines</summary><pre class="keys">${esc(lines.slice(8).join("\n"))}</pre></details>` : ""));
   },
@@ -215,7 +237,9 @@ const HANDLERS = {
     state.searches += 1;
     updateStats();
     const items = ev.results.map((r) => `<li><span class="dom">${esc(domain(r.url))}</span><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title || r.url)}</a></li>`).join("");
-    add(head("tavily", "Tavily", `search: “${esc(ev.query)}”`, `${ev.results.length} results`) + `<ul class="links">${items}</ul>`);
+    add(head("tavily", "Tavily", `search: “${esc(ev.query)}”`, `${ev.results.length} results`) +
+      `<div class="explain">Searching the web for the library's current documentation, instead of trusting what the model remembers.</div>` +
+      `<ul class="links">${items}</ul>`);
   },
   docs(ev) {
     state.pages += 1;
@@ -226,13 +250,16 @@ const HANDLERS = {
     state.pendingDocs = null;
     const meta = `${ev.page_chars.toLocaleString()} chars` + (p ? ` · ${p.latency.toFixed(0)}s · ${fmtUsd(p.cost)}` : "");
     add(head("nano", "Nemotron Nano", `read <a href="${esc(ev.url)}" target="_blank" rel="noopener">${esc(url)}</a>`, meta) +
-      `<div class="grounded">✓ ${ev.passages} of ${ev.checked} passages verified verbatim against the page</div>` +
+      `<div class="explain">Nano read the whole page and copied out only the parts about code this project uses.</div>` +
+      `<div class="grounded">✓ ${ev.passages} passage${ev.passages === 1 ? "" : "s"} handed to Ultra, each checked word-for-word against the page</div>` +
       (ev.excerpt ? `<details><summary>Passages handed to Ultra</summary><pre>${esc(ev.excerpt)}</pre></details>` : ""));
   },
   thinking(ev) {
     let box = state.thinking[ev.purpose];
     if (!box) {
-      box = add(head("ultra", "Nemotron Ultra", "is thinking…", "") + `<pre class="think"></pre>`);
+      box = add(head("ultra", "Nemotron Ultra", "is thinking…", "") +
+        `<div class="explain">The model's reasoning, streamed live: it compares the errors and the docs with the code.</div>` +
+        `<pre class="think"></pre>`);
       state.thinking[ev.purpose] = box;
     }
     const pre = $("pre", box);
@@ -262,11 +289,16 @@ const HANDLERS = {
   plan(ev) {
     const items = ev.text.split("\n").map((l) => l.trim()).filter((l) => /^\d+[.)]/.test(l))
       .map((l) => `<li>${inline(l.replace(/^\d+[.)]\s*/, ""))}</li>`).join("");
-    add(head("ultra", "Nemotron Ultra", `migration plan · attempt ${ev.attempt}`) + (items ? `<ol class="plan">${items}</ol>` : `<pre>${esc(ev.text)}</pre>`));
+    add(head("ultra", "Nemotron Ultra", `plan · attempt ${ev.attempt}`) +
+      `<div class="explain">What Ultra decided to change (old → new) and why.</div>` +
+      (items ? `<ol class="plan">${items}</ol>` : `<pre>${esc(ev.text)}</pre>`));
   },
   edit(ev) {
-    const n = ev.diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l)).length;
-    add(head("ultra", "Rewrote", `<code>${esc(ev.path)}</code>`, `${n} lines changed`) +
+    const lines = ev.diff.split("\n").filter((l) => !/^(\+\+\+|---)/.test(l));
+    const adds = lines.filter((l) => l.startsWith("+")).length, dels = lines.filter((l) => l.startsWith("-")).length;
+    const n = adds + dels;
+    add(head("ultra", "Rewrote", `<code>${esc(ev.path)}</code>`, `+${adds} −${dels}`) +
+      `<div class="explain">Red lines are the old code, green lines the new code.</div>` +
       `<details ${n <= 40 ? "open" : ""}><summary>diff</summary><pre class="diff">${diffHtml(ev.diff)}</pre></details>`);
   },
   log(ev) { add(head("test", "Bumpr", esc(ev.message))); },
@@ -276,8 +308,31 @@ const HANDLERS = {
     if (ev.usage) { state.calls = state.calls.length ? state.calls : []; updateStats(ev.usage); }
     document.querySelectorAll("#stepper li").forEach((li) => { li.classList.remove("now"); if (ev.success) li.classList.add("done"); });
     setStatus(ev.success ? "green" : "red", ev.success ? `green · ${ev.final?.passed}/${ev.total} tests` : "failed");
-    if (ev.diff) showResult(ev);
+    if (ev.diff) {
+      const lines = ev.diff.split("\n").filter((l) => !/^(\+\+\+|---)/.test(l));
+      $("#sumLines").textContent = `+${lines.filter((l) => l.startsWith("+")).length} −${lines.filter((l) => l.startsWith("-")).length}`;
+      showResult(ev);
+    }
+    const nl = $("#nowline");
+    nl.classList.toggle("done", !!ev.success);
+    nl.textContent = ev.success
+      ? `Done in ${fmtTime(ev.elapsed)}: all ${ev.final.passed} tests pass on ${ev.package} ${ev.new}. The pull request and the code changes are below.`
+      : "The run stopped before every test passed. The log above shows how far it got.";
   },
+};
+
+// One plain-English sentence per step, shown above the timeline.
+const PLAIN = {
+  setup: () => "Copying the project into a sandbox with its own Python environment.",
+  baseline: () => "Running the project's tests on the old library version. They should all pass.",
+  bump: (ev) => `Upgrading the library: ${ev.detail}.`,
+  break: () => "Running the same tests on the new version to see what the upgrade broke.",
+  research: (ev) => ev.detail.startsWith("Looking up")
+    ? `A new error appeared, so Bumpr is looking it up in the official docs before the next attempt.`
+    : "Finding the library's official migration guide on the web and reading it.",
+  fix: (ev) => `${ev.detail.replace("Nemotron Ultra is thinking", "Nemotron Ultra is planning the fix and rewriting the code")}.`,
+  verify: () => "Running the whole test suite one last time.",
+  report: () => "Nemotron Nano is writing the pull request that explains every change.",
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -314,6 +369,7 @@ function updateStats(summary) {
   const total = summary ? summary.total_cost : agg.ultra.cost + agg.nano.cost;
   const counterfactual = summary ? summary.all_planner_cost : allUltra;
   $("#tcost").textContent = fmtUsd(total);
+  $("#sumCost").textContent = `$${(total || 0).toFixed(3)}`;
   $("#tultra").textContent = fmtUsd(counterfactual);
   const tokAll = agg.ultra.tok + agg.nano.tok;
   $("#saving").textContent = counterfactual > total && tokAll
