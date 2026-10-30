@@ -1,176 +1,240 @@
-# Bumpr
+<h1 align="center">Bumpr</h1>
 
-**Upgrade a Python dependency. Bumpr reads *today's* official docs, fixes what broke, and proves it with your tests.**
+<p align="center">
+  Upgrade a Python library and keep your code working.<br>
+  Bumpr reads <b>today's</b> official docs, rewrites what broke with NVIDIA Nemotron,<br>
+  and proves the fix with your own tests.
+</p>
 
-**Demo:** https://andrei-cicortas.github.io/bumpr/ (replays of real, unedited runs; live runs: see [Run it](#run-it))
+<p align="center">
+  <a href="https://andrei-cicortas.github.io/bumpr/"><img alt="Live demo" src="https://img.shields.io/badge/demo-watch%20a%20real%20run-76b900"></a>
+  <a href="https://github.com/andrei-cicortas/bumpr/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/andrei-cicortas/bumpr/actions/workflows/test.yml/badge.svg"></a>
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776AB">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-green"></a>
+</p>
 
-Built for the Nebius x NVIDIA Global AI Hackathon (Coding and Agentic Engineering track) with
-**NVIDIA Nemotron 3 Ultra** and **Nemotron 3 Nano** served by **Nebius Token Factory**, plus **Tavily** for live documentation.
+<p align="center">
+  <img src="assets/result.jpg" alt="Bumpr after upgrading pandas 2.2 to 3.1: 0 of 7 tests passed after the upgrade, 7 of 7 after Bumpr">
+</p>
 
-| Migration | Tests after bump | After Bumpr | Wall time | Cost | Same calls on Ultra only |
+<p align="center"><sub>pandas 2.2 → 3.1: after the upgrade 0 of 7 tests pass. Bumpr gets all 7 green in under four minutes, for 3.5 cents.
+<a href="https://andrei-cicortas.github.io/bumpr/">Watch this run in your browser</a>.</sub></p>
+
+## Why I built it
+
+Major-version upgrades are where codebases rot. pandas 3, pydantic 2 and SQLAlchemy 2 each break real code in
+dozens of small ways, some of them silent: in pandas 3, strings become a new `str` dtype and chained assignment
+quietly stops writing. The fixes are documented, but scattered across migration guides and "what's new" pages,
+so the upgrade sits in the backlog for months.
+
+AI coding assistants should be perfect for this, yet they fail in a specific way: **their training data predates
+the release, so they confidently write the old API.** Asked to migrate a small pydantic model from memory, both
+Nemotron 3 Super and Ultra kept `Field(regex=...)`, a keyword pydantic 2 removed. And someone still has to sit
+there, prompt, check and re-prompt.
+
+So I built the tool I wanted: one command that never trusts the model's memory. It reads the library's current
+docs, rewrites the code, and only calls the job done when the project's own test suite is green.
+
+## What it does
+
+- **One command, then a reviewable change.** `bumpr . pandas --to 3 --apply` bumps the pin, fixes the code, and
+  leaves you a `git diff`, a `.patch` and a pull request description that explains every change, with sources.
+- **Reads the docs that exist today.** Tavily finds the library's official migration guide; NVIDIA Nemotron Nano
+  reads the whole page and hands over only the passages your code needs, each one checked word for word against
+  the page.
+- **Thinks, then rewrites.** NVIDIA Nemotron Ultra plans every change (old → new, and why) and rewrites the files.
+- **Proves it.** Your tests run again; failures go back to Ultra, and a new error is looked up in the official docs
+  before the next attempt. Your files are only touched when every test passes.
+- **Can't cheat.** Tests, requirements and test config are write-protected; shortcuts like `pydantic.v1`, warning
+  filters or skipped tests are rejected.
+- **Cheap, with hard caps.** A run costs a few cents on Nebius Token Factory; spend caps per run and in total are
+  built in.
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/docs-and-plan.jpg" alt="Nemotron Nano reading the pandas 3 docs, then Nemotron Ultra's migration plan"></td>
+    <td width="50%"><img src="assets/diff.jpg" alt="The final diff: old pandas 2 code in red, new pandas 3 code in green"></td>
+  </tr>
+  <tr>
+    <td><b>Docs first, then a plan.</b> Nano reads 150k characters of the official "What's new in 3.0.0" page and
+    keeps 12 verified passages; Ultra turns them into a plan.</td>
+    <td><b>A diff you can review.</b> Every changed line, plus the pull request text and the sources it used.</td>
+  </tr>
+</table>
+
+## Install
+
+1. `pip install git+https://github.com/andrei-cicortas/bumpr` (Python 3.10 or newer).
+2. `bumpr setup` and paste two keys: a [Nebius Token Factory](https://tokenfactory.nebius.com) key and a
+   [Tavily](https://app.tavily.com) key (the free tier is enough). They are stored only on your computer, in
+   `~/.bumpr/.env`.
+
+## Use it
+
+Inside any Python project with a pytest suite and a `requirements.txt`:
+
+```bash
+bumpr . pandas --to 3 --apply        # --to latest | 3 | 3.1 | 3.1.0
+```
+
+Your project is never touched while Bumpr works: it runs on a copy in a throwaway virtualenv. When every test
+passes, `--apply` writes the fixed files and the new pin into your project. You also get, in the current folder:
+
+- `bumpr-pandas-3.1.0.patch`: every change, as a patch
+- `bumpr-pandas-3.1.0.md`: the pull request description (what changed, why, sources)
+
+Then it is the usual routine: read the description, `git diff`, commit, open the pull request.
+Without `--apply` nothing in your project changes; you only get the patch and the description.
+
+### In GitHub Actions
+
+Bumpr also ships as an action that opens the pull request for you. Add your two keys as repository secrets
+(`NEBIUS_API_KEY`, `TAVILY_API_KEY`), then `.github/workflows/bumpr.yml`:
+
+```yaml
+name: Upgrade with Bumpr
+on:
+  workflow_dispatch:
+    inputs:
+      package: { description: "Package", default: "pandas" }
+      to: { description: "Target version", default: "latest" }
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  bumpr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: andrei-cicortas/bumpr@main
+        with:
+          package: ${{ inputs.package }}
+          to: ${{ inputs.to }}
+          nebius-api-key: ${{ secrets.NEBIUS_API_KEY }}
+          tavily-api-key: ${{ secrets.TAVILY_API_KEY }}
+```
+
+The job fails, and no pull request is opened, unless every test passes. (In the repository settings, allow
+GitHub Actions to create pull requests.)
+
+## Results
+
+| Migration | After the upgrade | After Bumpr | Time | Cost | Same calls on Ultra only |
 |---|---|---|---|---|---|
-| pandas 2.2 -> **3.1** (released 2026) | 0 / 7 | **7 / 7** | 3:46 | $0.035 | $0.144 |
-| pydantic 1.10 -> 2.14 | 0 / 11 | **11 / 11** | 3:21 | $0.044 | $0.145 |
-| SQLAlchemy 1.4 -> 2.1 | 0 / 5 | **5 / 5** | 4:01 | $0.069 | $0.210 |
+| pandas 2.2 → **3.1** (released 2026) | 0 / 7 | **7 / 7** | 3:46 | $0.035 | $0.144 |
+| pydantic 1.10 → 2.14 | 0 / 11 | **11 / 11** | 3:21 | $0.044 | $0.145 |
+| SQLAlchemy 1.4 → 2.1 | 0 / 5 | **5 / 5** | 4:01 | $0.069 | $0.210 |
 
-*Numbers from the recorded runs in `web/replays/`; costs use live Token Factory prices.*
+Recorded runs in `web/replays/`, replayable in the [demo](https://andrei-cicortas.github.io/bumpr/); costs use live
+Token Factory prices. The three sample apps are in `samples/`.
 
-## The problem
+## How it works
 
-Major-version upgrades are where codebases rot. The breaking changes are documented, but scattered across
-migration guides, changelogs and "what's new" pages, and they often change *behaviour* rather than names
-(pandas 3 turns strings into a new `str` dtype and makes chained assignment silently do nothing).
-
-LLM coding agents are a poor fit out of the box: their training data predates the release, so they confidently
-write the *old* API. In our own tests, both Nemotron 3 Super and Ultra rewrote a pydantic model and still left
-`Field(regex=...)` in place: that keyword was removed in pydantic 2.
-
-## How Bumpr works
-
-```
- bump pin ─► run tests ─► find official migration guide (Tavily search)
-                │                       │
-                │            fetch the whole page (Tavily extract)
-                │                       │
-                │        Nemotron 3 Nano reads it (up to 150k chars) and copies out
-                │        only the passages relevant to this code, verbatim
-                │                       │
-                │        every passage is checked against the source page;
-                │        anything not found there is dropped
-                ▼                       ▼
-        Nemotron 3 Ultra thinks: numbered migration plan (old -> new, why, per the docs),
-        then rewrites every affected file in full
-                │
-                ▼
-          run tests again ── red ──► failures (+ optional NEED_DOCS lookups) go back to Ultra
-                │
-              green
-                ▼
-     Nemotron 3 Nano writes the pull request from Ultra's plan + diff ─► patch
+```mermaid
+flowchart LR
+  A[bump the pin<br/>run tests] -->|red| B[Tavily: find + fetch<br/>official migration guide]
+  B --> C[Nemotron Nano: read the page,<br/>keep verbatim passages]
+  C --> D{passage really<br/>on the page?}
+  D -->|yes| E[Nemotron Ultra: plan,<br/>rewrite files]
+  E --> F[run tests]
+  F -->|red: new error| G[look it up in the docs] --> E
+  F -->|green| H[Nemotron Nano:<br/>pull request text] --> I[patch + --apply]
 ```
 
-1. **Isolated sandbox.** The repo is copied into a throwaway workspace with its own virtualenv (managed by `uv`).
-   The baseline must be green; then the dependency is bumped and the tests run again.
-2. **Live documentation, grounded.** Tavily finds the package's own migration guide; Tavily Extract fetches the
-   full page. Nemotron 3 Nano (262k context, $0.06/M input tokens) reads all of it and returns verbatim passages.
-   A deterministic check keeps only passages whose lines really occur in the page, so the planner never sees
-   "documentation" a model invented.
-3. **Think, then rewrite.** Nemotron 3 Ultra receives the code, the failing test lines and the excerpts, writes a
-   migration plan, and outputs complete new files. Its reasoning streams live into the UI.
-4. **Tests are the judge.** Tests, requirements and test config are write-protected; shortcuts such as
-   `pydantic.v1`, warning filters or `pytest.skip` are rejected. Failures go back to Ultra (up to 5 attempts).
-   Ultra can ask for more docs with `NEED_DOCS: <query>`, and when a *new* error appears Bumpr looks it up in the
-   package's official docs before the next attempt instead of letting the model guess.
-5. **Ship.** Nemotron 3 Nano writes the PR description from Ultra's plan and the diff; you get a `.patch`.
+1. **Isolated sandbox.** The project is copied into a throwaway workspace with its own virtualenv (`uv`). The
+   baseline must be green; then the dependency is bumped and the tests run again.
+2. **Live documentation, grounded.** Tavily search finds the package's own migration guide; Tavily extract fetches
+   the full page. Nemotron Nano (262k context, $0.06 per million input tokens) reads all of it and returns verbatim
+   passages. A deterministic check keeps only passages whose lines really occur on the page, so the planner never
+   sees "documentation" a model invented.
+3. **Think, then rewrite.** Nemotron Ultra receives the code, the failing test lines and the excerpts, writes a
+   migration plan and outputs complete new files. Its reasoning streams live into the web UI.
+4. **Tests are the judge.** Failures go back to Ultra (up to 5 attempts). Ultra can ask for more docs with
+   `NEED_DOCS: <query>`, and a new error is looked up in the official docs automatically.
+5. **Ship.** Nemotron Nano writes the pull request description from Ultra's plan and the diff.
 
 ### Why two Nemotron models
 
 | Job | Model | Why |
 |---|---|---|
-| Plan + rewrite code | `nvidia/Nemotron-3-Ultra-550b-a55b` | The hard reasoning; called 2-3 times per run with a compact context |
+| Plan and rewrite code | `nvidia/Nemotron-3-Ultra-550b-a55b` | The hard reasoning, in 2-3 calls with a compact context |
 | Read whole docs pages, extract passages | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Most tokens in a run are documentation; Nano reads them at 1/16 of Ultra's input price |
-| Write the PR | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Formatting work, no reasoning needed |
+| Write the pull request | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Formatting, not reasoning |
 
-Across the three recorded runs, Nano processed 72-90% of all tokens, and the cascade cost **67-76% less** than
-sending the same calls to Ultra, while Ultra's context stays small (excerpts instead of 50k-character pages).
+Across the three recorded runs Nano processed 72-90% of all tokens, and the cascade cost 67-76% less than sending
+the same calls to Ultra, while Ultra's context stays small (excerpts instead of 50k-character pages).
 
-### What we learned building it
+### What I learned building it
 
-* **Agentic tool loops made Nemotron Ultra *worse* here.** Our first version gave Ultra fine-grained tools
-  (`read_file`, `replace_in_file`, `run_tests`, ...). It took 30+ short steps, barely reasoned per step
-  (30-100 output tokens), and never got the pydantic sample green ($0.20-0.24 per failed run). Switching to
-  "think hard, rewrite whole files, let the tests judge" gave green runs in 2-3 Ultra calls for about $0.03-0.07.
-* **Small models should copy, not paraphrase.** With thinking disabled, Nano summaries of the docs contained
-  confident errors (e.g. "`each_item=True` is replaced by `mode='before'`") that derailed the planner. Asking
-  Nano for *verbatim* passages and verifying them against the source fixed it.
-* **`chat_template_kwargs: {"enable_thinking": false}`** works on Token Factory for Nemotron 3 and makes Nano about
-  5x faster for pure extraction; we keep thinking on wherever accuracy matters.
+- **Agentic tool loops made Nemotron Ultra worse here.** The first version gave Ultra fine-grained tools
+  (`read_file`, `replace_in_file`, `run_tests`, ...). It took 30+ short steps, reasoned only 30-100 tokens per step,
+  and never got the pydantic sample green ($0.20-0.24 per failed run). "Think hard, rewrite whole files, let the
+  tests judge" gave green runs in 2-3 Ultra calls for $0.03-0.07.
+- **Small models should copy, not paraphrase.** With thinking off, Nano's *summaries* of the docs contained
+  confident errors (e.g. "`each_item=True` is replaced by `mode='before'`") that derailed the planner. Verbatim
+  passages, checked against the page, fixed it.
+- **`chat_template_kwargs: {"enable_thinking": false}`** works on Token Factory for Nemotron 3 and makes Nano about
+  5x faster for pure extraction; thinking stays on wherever accuracy matters.
 
-## Run it
+## Web UI
 
-Requirements: Python 3.10+ and [uv](https://docs.astral.sh/uv/) (installed automatically from `requirements.txt`).
+The [demo](https://andrei-cicortas.github.io/bumpr/) replays real, unedited runs. To run it locally, with live runs:
 
 ```bash
 git clone https://github.com/andrei-cicortas/bumpr && cd bumpr
-python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env                                   # add NEBIUS_API_KEY and TAVILY_API_KEY
-```
-
-**CLI on any Python repo with a pytest suite and a `requirements.txt`:**
-
-```bash
-python -m bumpr samples/pandas-sales-report pandas --to 3
-python -m bumpr path/to/your/repo sqlalchemy --to 2 --apply   # --to latest | 2 | 2.1 | 2.1.6
-```
-
-Your repo is never touched during the run: Bumpr works on a copy in a throwaway sandbox. At the end you get
-`bumpr-<package>-<version>.patch` and `bumpr-<package>-<version>.md` (the pull request description, with sources)
-in the current folder (`--out` to change it). With `--apply`, and only if every test passes, the fixed files and the
-new pin are written into your repo, so you can review them with `git diff` and commit.
-
-Typical workflow for a developer:
-
-1. Dependabot/Renovate (or you) wants a major upgrade, e.g. pandas 2 -> 3.
-2. `python -m bumpr . pandas --to 3 --apply` in the project (needs a pytest suite and a `requirements.txt`).
-3. Read the PR description Bumpr wrote, review `git diff`, run your app if you like.
-4. `git checkout -b upgrade-pandas-3 && git commit -am "Upgrade pandas to 3"` and open the PR with the `.md` as its description.
-
-**Web UI** (recorded runs + live runs; `python -m web.build_static` builds the static, recordings-only site in `docs/`):
-
-```bash
+pip install -e ".[web]"
+cp .env.example .env            # add NEBIUS_API_KEY and TAVILY_API_KEY
 uvicorn web.server:app --port 8000
-# open http://localhost:8000
 ```
 
-### Configuration (`.env`)
+`python -m web.build_static` rebuilds the static, recordings-only site in `docs/`.
+
+## Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `NEBIUS_API_KEY` | - | Nebius Token Factory key |
-| `TAVILY_API_KEY` | - | Tavily key (free tier is enough) |
+| `NEBIUS_API_KEY` | - | Nebius Token Factory key (`bumpr setup` stores it) |
+| `TAVILY_API_KEY` | - | Tavily key (`bumpr setup` stores it) |
 | `NEBIUS_BASE_URL` | `https://api.tokenfactory.nebius.com/v1/` | OpenAI-compatible endpoint |
 | `BUMPR_PLANNER_MODEL` | `nvidia/Nemotron-3-Ultra-550b-a55b` | Planner / code writer |
 | `BUMPR_FAST_MODEL` | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Docs reader / PR writer |
 | `BUMPR_MAX_RUN_COST` | `0.50` | Hard stop per run (USD, from live prices) |
-| `BUMPR_MAX_TOTAL_COST` | `3.00` | Hard stop across all runs (ledger in `runs/spend.json`) |
+| `BUMPR_MAX_TOTAL_COST` | `3.00` | Hard stop across all runs (ledger in `~/.bumpr/runs/spend.json`) |
 | `BUMPR_ACCESS_CODE` | empty | If set, live runs in the web UI require this code |
-| `BUMPR_LIVE` | `1` | Set `0` to serve recordings only |
 
-Costs are computed from the per-token prices that Token Factory's `/v1/models?verbose=true` endpoint returns.
+Keys are read from environment variables first, then a `.env` in the current folder, then `~/.bumpr/.env`.
 
 ## Project layout
 
 ```
 bumpr/
-  agent.py     the upgrade loop (bump -> test -> docs -> think & rewrite -> verify -> PR)
+  __main__.py  CLI: bumpr setup, bumpr <repo> <package> --to <version> [--apply]
+  agent.py     the upgrade loop (bump → test → docs → think & rewrite → verify → PR)
   docs.py      Tavily search/extract + Nano verbatim extraction + grounding check
-  llm.py       Token Factory client: streaming reasoning, usage, live pricing, budget caps
+  llm.py       Token Factory client: streaming reasoning, usage, live pricing, spend caps
   sandbox.py   isolated workspace + uv virtualenv + pytest runner
   tools.py     guarded file writes (tests/requirements protected, shortcuts rejected)
-web/
-  server.py    FastAPI: recordings, live runs over SSE
-  static/      single-page UI (no build step)
-  replays/     recorded event logs of real runs
+web/           FastAPI server, single-page UI, recorded runs
 samples/       three small apps pinned to old majors, each with a pytest suite
+tests/         offline unit tests (run in CI)
+action.yml     the GitHub Action
 ```
 
 ## Nebius and NVIDIA usage
 
-* **Nebius Token Factory** serves every model call through its OpenAI-compatible API, including streamed
-  reasoning traces, tool-free long-context calls (150k-character pages to Nano), and live per-token pricing used
-  for the cost meter and spend caps.
-* **NVIDIA Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`): planning and code generation.
-* **NVIDIA Nemotron 3 Nano** (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`): documentation reading and PR writing.
-* **Tavily**: `search` (advanced depth) to locate official docs, `extract` to fetch full pages, at runtime on every run.
+- **Nebius Token Factory** serves every model call through its OpenAI-compatible API: streamed reasoning traces,
+  long-context calls (150k-character pages to Nano), and live per-token prices from `/v1/models?verbose=true`,
+  used for the cost meter and the spend caps.
+- **NVIDIA Nemotron 3 Ultra** (`nvidia/Nemotron-3-Ultra-550b-a55b`): planning and code generation.
+- **NVIDIA Nemotron 3 Nano** (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`): documentation reading and the PR text.
+- **Tavily**: `search` (advanced depth) to locate official docs and `extract` to fetch full pages, on every run.
 
 ## Limitations
 
-* Python projects with a pytest suite and a `requirements.txt`; one dependency per run.
-* The tests are the specification: a migration is only as safe as the suite that checks it.
-* The hosted demo (GitHub Pages) replays recorded runs; live runs need your own Nebius Token Factory and Tavily keys.
-  If you self-host the web UI with live runs, set `BUMPR_ACCESS_CODE` to protect your credits (a `Dockerfile` is included).
+- Python projects with a pytest suite and a `requirements.txt`; one dependency per run.
+- The tests are the specification: a migration is only as safe as the suite that checks it.
+- The GitHub Action is a thin wrapper around the CLI; the CLI itself is what the recorded runs and tests exercise.
 
-## License
+## Licence
 
 [MIT](LICENSE)

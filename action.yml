@@ -1,0 +1,60 @@
+name: Bumpr
+description: Upgrade a Python dependency, fix the code with NVIDIA Nemotron, and open a pull request only if every test passes.
+branding:
+  icon: arrow-up-circle
+  color: green
+
+inputs:
+  package:
+    description: Dependency to upgrade, e.g. pandas
+    required: true
+  to:
+    description: "Target version: latest, a major (3), or exact (3.1.0)"
+    default: latest
+  path:
+    description: Folder of the Python project (needs requirements.txt and a pytest suite)
+    default: "."
+  nebius-api-key:
+    description: Nebius Token Factory API key (store it as a repository secret)
+    required: true
+  tavily-api-key:
+    description: Tavily API key (store it as a repository secret)
+    required: true
+  github-token:
+    description: Token used to open the pull request
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install Bumpr
+      shell: bash
+      run: pip install "${{ github.action_path }}"
+
+    - name: Upgrade and fix
+      id: bumpr
+      shell: bash
+      env:
+        NEBIUS_API_KEY: ${{ inputs.nebius-api-key }}
+        TAVILY_API_KEY: ${{ inputs.tavily-api-key }}
+        PYTHONIOENCODING: utf-8
+      run: |
+        out="$RUNNER_TEMP/bumpr"
+        bumpr "${{ inputs.path }}" "${{ inputs.package }}" --to "${{ inputs.to }}" --apply --out "$out"
+        pr=$(ls "$out"/*.md | head -1)
+        version=$(basename "$pr" .md | sed "s/^bumpr-${{ inputs.package }}-//")
+        echo "pr-body=$pr" >> "$GITHUB_OUTPUT"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Open the pull request
+      uses: peter-evans/create-pull-request@v7
+      with:
+        token: ${{ inputs.github-token }}
+        branch: bumpr/${{ inputs.package }}-${{ steps.bumpr.outputs.version }}
+        title: Upgrade ${{ inputs.package }} to ${{ steps.bumpr.outputs.version }}
+        commit-message: Upgrade ${{ inputs.package }} to ${{ steps.bumpr.outputs.version }} (Bumpr)
+        body-path: ${{ steps.bumpr.outputs.pr-body }}

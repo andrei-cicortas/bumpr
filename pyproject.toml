@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bumpr"
+version = "0.1.0"
+description = "Upgrade a Python dependency: Bumpr reads today's official docs, fixes what broke, and proves it with your tests."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Andrei Cicortas" }]
+dependencies = [
+  "openai>=1.50",
+  "httpx>=0.27",
+  "python-dotenv>=1.0",
+  "uv>=0.5",
+]
+
+[project.optional-dependencies]
+web = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
+
+[project.scripts]
+bumpr = "bumpr.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/andrei-cicortas/bumpr"
+Demo = "https://andrei-cicortas.github.io/bumpr/"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bumpr"]
+
+[tool.hatch.build.targets.sdist]
+include = ["bumpr", "README.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

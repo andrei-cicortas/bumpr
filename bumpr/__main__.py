@@ -55,17 +55,55 @@ def show(e):
         print(f"{c}{line}{RESET}", flush=True)
 
 
+def setup():
+    """Ask for the two API keys once and keep them in ~/.bumpr/.env on this computer only."""
+    from getpass import getpass
+
+    import httpx
+
+    print("Bumpr needs two API keys. They are saved only on this computer, in", config.USER_ENV)
+    print("  Nebius Token Factory:  https://tokenfactory.nebius.com  (API keys)")
+    print("  Tavily (free tier):    https://app.tavily.com\n")
+    nebius = getpass("Nebius Token Factory API key (typing is hidden): ").strip()
+    tavily = getpass("Tavily API key (typing is hidden): ").strip()
+    try:
+        ok = httpx.get(config.BASE_URL.rstrip("/") + "/models", headers={"Authorization": f"Bearer {nebius}"},
+                       timeout=20).status_code == 200
+    except httpx.HTTPError:
+        ok = False
+    if not ok:
+        sys.exit("That Nebius key was rejected by Token Factory. Nothing was saved; run `bumpr setup` again.")
+    if not tavily.startswith("tvly-"):
+        sys.exit("Tavily keys start with `tvly-`. Nothing was saved; run `bumpr setup` again.")
+    config.USER_ENV.parent.mkdir(parents=True, exist_ok=True)
+    config.USER_ENV.write_text(f"NEBIUS_API_KEY={nebius}\nTAVILY_API_KEY={tavily}\n", encoding="utf-8")
+    try:
+        config.USER_ENV.chmod(0o600)
+    except OSError:
+        pass
+    print(f"Saved. Now run, inside a project:  bumpr . <package> --to <version>")
+
+
 def main():
-    p = argparse.ArgumentParser(prog="bumpr", description="Upgrade a dependency and fix the breakage.")
-    p.add_argument("repo", help="path to a Python project with tests")
+    if sys.argv[1:2] == ["setup"]:
+        return setup()
+    p = argparse.ArgumentParser(
+        prog="bumpr", description="Upgrade a dependency and fix the breakage.",
+        epilog="First time? Run `bumpr setup` to store your API keys. Example: bumpr . pandas --to 3 --apply")
+    p.add_argument("repo", help="path to a Python project with tests and a requirements.txt (use . for here)")
     p.add_argument("package", help="dependency to upgrade, e.g. pandas")
     p.add_argument("--to", default="latest", help="target version: latest, a major (3), or exact (3.1.0)")
     p.add_argument("--apply", action="store_true",
                    help="write the fixed files into the repo when every test passes (review with `git diff`)")
     p.add_argument("--out", default=".", help="folder for the .patch and the pull request description")
+    if len(sys.argv) == 1:
+        p.print_help()
+        return 0
     args = p.parse_args()
     if not config.NEBIUS_API_KEY or not config.TAVILY_API_KEY:
-        sys.exit("Set NEBIUS_API_KEY and TAVILY_API_KEY in .env")
+        sys.exit("No API keys found. Run `bumpr setup` once (or set NEBIUS_API_KEY and TAVILY_API_KEY).")
+    if not Path(args.repo, "requirements.txt").exists():
+        sys.exit(f"{Path(args.repo).resolve()} has no requirements.txt. Bumpr needs one, plus a pytest suite.")
     run = Run(args.repo, args.package, args.to, on_event=show)
     result = run.execute()
     if result.get("report"):

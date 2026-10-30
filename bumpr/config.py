@@ -6,7 +6,13 @@ import httpx
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
+HOME = Path(os.getenv("BUMPR_HOME", Path.home() / ".bumpr"))
+IN_CHECKOUT = (ROOT / "samples").is_dir()  # running from a clone of the repo rather than a pip install
+USER_ENV = HOME / ".env"  # written by `bumpr setup`
+
+# Real environment variables win, then a .env in the checkout or the current folder, then `bumpr setup`'s file.
+for _env in (ROOT / ".env", Path.cwd() / ".env", USER_ENV):
+    load_dotenv(_env)
 
 BASE_URL = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/")
 NEBIUS_API_KEY = os.getenv("NEBIUS_API_KEY", "")
@@ -16,8 +22,9 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 PLANNER_MODEL = os.getenv("BUMPR_PLANNER_MODEL", "nvidia/Nemotron-3-Ultra-550b-a55b")
 FAST_MODEL = os.getenv("BUMPR_FAST_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
 
-WORKDIR = Path(os.getenv("BUMPR_WORKDIR", ROOT / "workspaces"))
-RUNS_DIR = Path(os.getenv("BUMPR_RUNS_DIR", ROOT / "runs"))
+_DATA = ROOT if IN_CHECKOUT else HOME
+WORKDIR = Path(os.getenv("BUMPR_WORKDIR", _DATA / "workspaces"))
+RUNS_DIR = Path(os.getenv("BUMPR_RUNS_DIR", _DATA / "runs"))
 SAMPLES_DIR = ROOT / "samples"
 WORKSPACE_PYTHON = os.getenv("BUMPR_WORKSPACE_PYTHON", "3.12")
 MAX_STEPS = int(os.getenv("BUMPR_MAX_STEPS", "30"))
