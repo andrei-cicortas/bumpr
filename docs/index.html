@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="static/style.css?v=9">
+<link rel="stylesheet" href="static/style.css?v=12">
 </head>
 <body>
 <header class="top">
@@ -49,26 +49,41 @@
   <section class="run" id="run">
     <div class="empty" id="empty">
       <div class="empty-inner start">
-        <h1 class="hero">Software updates break apps.<br><span class="hl">Bumpr fixes them automatically.</span></h1>
-        <p class="sub">Like a mechanic who reads the new manual, fixes the car, and test-drives it.</p>
-        <div class="tiles">
-          <div class="tile"><div class="ico">💥</div><b>An update breaks the app</b></div>
-          <div class="tarrow">→</div>
-          <div class="tile"><div class="ico">📖</div><b>AI reads the new manual</b></div>
-          <div class="tarrow">→</div>
-          <div class="tile"><div class="ico">✅</div><b>Fixes the code and proves it works</b></div>
+        <div class="term">
+          <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span>bumpr</span></div>
+          <div class="term-body">
+            <p class="t-lead">When a library ships a breaking update, <b>Bumpr</b> updates it, reads the new official docs,
+              rewrites the code that broke, and re-runs your checks until every one passes.</p>
+            <div class="t-cmd"><span class="t-prompt">$</span> bumpr ./sales-report pandas --to 3</div>
+            <div class="ba">
+              <div class="ba-col">
+                <div class="ba-h">before · pandas 2.2</div>
+                <code class="ba-code del">df["region"].fillna(method="ffill")</code>
+                <div class="ba-res bad">✗ 0 / 7 checks pass after the update</div>
+              </div>
+              <div class="ba-arrow">→</div>
+              <div class="ba-col">
+                <div class="ba-h">after bumpr · pandas 3.1</div>
+                <code class="ba-code add">df["region"].ffill()</code>
+                <div class="ba-res good">✓ 7 / 7 checks pass</div>
+              </div>
+            </div>
+            <div class="t-pipe">update <span>→</span> run checks <span>→</span> read official docs <span>→</span> rewrite code <span>→</span> re-run checks</div>
+            <div class="t-actions">
+              <button class="run-btn" id="cta">▶ run the demo</button>
+              <span class="t-note">replays a real run step by step · about 1 minute</span>
+            </div>
+            <div class="t-links"><button class="linkbtn" id="devBtn">full technical view</button>
+              <button class="linkbtn" id="glossBtn">glossary</button></div>
+            <dl class="glossary" id="gloss" hidden>
+              <dt>library</dt><dd>reusable code an app depends on (pandas: data tables)</dd>
+              <dt>checks</dt><dd>automatic tests that the app still gives the right answers</dd>
+              <dt>docs</dt><dd>the library's official documentation website</dd>
+              <dt>Nemotron</dt><dd>NVIDIA's AI models: Ultra writes the code, Nano reads the docs</dd>
+              <dt>Tavily</dt><dd>web search built for AI; finds and fetches the docs</dd>
+            </dl>
+          </div>
         </div>
-        <button class="primary cta" id="cta">▶ Show me</button>
-        <div class="start-links">
-          <button class="linkbtn" id="glossBtn">What do the words mean?</button>
-          <button class="linkbtn" id="devBtn">I'm a developer</button>
-        </div>
-        <dl class="glossary" id="gloss" hidden>
-          <dt>Library</dt><dd>Ready-made code that apps reuse (pandas = tables of data, like Excel inside a program).</dd>
-          <dt>Checks (tests)</dt><dd>Automatic checks that the app gives the right answers. Green = pass, red = fail.</dd>
-          <dt>Manual (docs)</dt><dd>The library's official documentation website.</dd>
-          <dt>Nemotron</dt><dd>NVIDIA's AI. Ultra (big) writes the code, Nano (small) reads the manual.</dd>
-        </dl>
       </div>
     </div>
 
@@ -84,19 +99,29 @@
         </div>
       </div>
 
-      <div class="summary">
+      <div class="ide simple-only" id="ide">
+        <div class="ide-main">
+          <section class="pane"><div class="pane-h">checks <span id="checksCount"></span></div><ul class="checks" id="checks"></ul></section>
+          <section class="pane"><div class="pane-h">log</div><div class="log" id="log"></div></section>
+        </div>
+        <section class="pane change" id="changePane" hidden><div class="pane-h">change <span id="changeFile"></span>
+          <span class="legend"><span class="del">− removed</span> <span class="add">+ added</span></span></div><pre class="diff" id="change"></pre></section>
+        <div class="stepbar" id="stepbar"><span class="stepnum" id="stepNum"></span><span class="steptext" id="stepText">starting…</span><span class="stepbtns" id="stepBtns"></span></div>
+      </div>
+
+      <div class="summary dev">
         <div><span class="label">Checks passing after the update</span><span class="sum-big" id="sumBroken">-</span></div>
         <div><span class="label">Checks passing now</span><span class="sum-big" id="sumNow">-</span></div>
         <div><span class="label">Lines of code changed</span><span class="sum-big" id="sumLines">0</span></div>
         <div><span class="label">AI cost</span><span class="sum-big" id="sumCost">$0.00</span></div>
       </div>
-      <div class="guide" id="guide"></div>
+      <div class="guide" id="guide" hidden></div>
       <p class="nowline dev" id="nowline">Starting…</p>
       <div class="result-plain" id="resultPlain" hidden></div>
 
       <ol class="stepper" id="stepper"></ol>
 
-      <div class="meter">
+      <div class="meter dev">
         <div class="meter-top">
           <span class="label">Automatic checks (tests)</span>
           <span class="meter-num" id="meternum">-</span>
@@ -192,6 +217,6 @@ python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
   </form>
 </dialog>
 
-<script src="static/app.js?v=9"></script>
+<script src="static/app.js?v=12"></script>
 </body>
 </html>

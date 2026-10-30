@@ -90,6 +90,13 @@ function resetView(name) {
   updateStats();
   $("#clock").textContent = "0:00";
 
+  state.sample = name;
+  state.tests = s.tests || [];
+  $("#log").innerHTML = "";
+  $("#changePane").hidden = true;
+  $("#stepNum").textContent = "";
+  setStep("starting…");
+  renderChecks(() => "pending");
   for (const id of ["#sumBroken", "#sumNow"]) $(id).textContent = "-";
   $("#sumLines").textContent = "0";
   $("#nowline").className = "nowline dev";
@@ -156,31 +163,68 @@ function setMode(m) {
   if (m !== "simple") resume();
 }
 
-function activity(text) {
-  if (session?.paused) return;
-  const g = $("#guide");
-  g.className = "guide g-activity";
-  g.innerHTML = `<div class="spinner"></div><div class="g-body"><div class="g-text">${text}</div></div>`;
+// ---- guided IDE panel: checks list, terminal log, current change, step bar ----------------------
+const human = (name) => name.replace(/^test_/, "").replace(/_/g, " ");
+
+function logLine(html, cls = "info") {
+  const div = document.createElement("div");
+  div.className = cls;
+  div.innerHTML = html;
+  const log = $("#log");
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
 }
 
-function milestone(icon, html, extra = "") {
-  const g = $("#guide");
-  const pause = session?.replaying && mode === "simple" && !session.skip;
-  g.className = "guide";
-  g.innerHTML = `<div class="g-icon">${icon}</div><div class="g-body"><div class="g-text">${html}</div>${extra}` +
-    (pause ? `<div class="g-actions"><button class="primary" id="gNext">Continue ▶</button>` +
-      `<button class="linkbtn" id="gSkip">Skip to the result</button></div>` : "") + `</div>`;
-  if (pause) {
-    session.paused = true;
-    $("#gNext").onclick = resume;
-    $("#gSkip").onclick = () => { session.skip = true; resume(); };
-    $("#gNext").focus({ preventScroll: true });
+function renderChecks(statusOf) {
+  const names = state.tests || [];
+  const prev = state.checkStatus || {};
+  state.checkStatus = {};
+  $("#checks").innerHTML = names.map((nm) => {
+    const st = statusOf(nm);
+    state.checkStatus[nm] = st;
+    const mark = st === "pass" ? "✓" : st === "fail" ? "✗" : "·";
+    const flash = prev[nm] && prev[nm] !== st && st === "pass" ? " flash" : "";
+    return `<li class="${st}${flash}"><span class="s">${mark}</span>${esc(human(nm))}</li>`;
+  }).join("");
+  const passed = Object.values(state.checkStatus).filter((x) => x === "pass").length;
+  $("#checksCount").textContent = names.length ? `${passed} / ${names.length} pass` : "";
+}
+
+function showChange(path, diff, max = 16) {
+  const lines = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l)).slice(0, max);
+  $("#changePane").hidden = false;
+  $("#changeFile").textContent = path;
+  $("#change").innerHTML = diffHtml(lines.join("\n"));
+}
+
+function setStep(html, buttons = []) {
+  $("#stepText").innerHTML = html;
+  const box = $("#stepBtns");
+  box.innerHTML = "";
+  for (const [label, fn, primary] of buttons) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    if (primary) b.className = "go";
+    b.onclick = fn;
+    box.appendChild(b);
   }
 }
 
-function miniDiff(diff, max = 12) {
-  const lines = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l)).slice(0, max);
-  return `<pre class="diff g-mini">${diffHtml(lines.join("\n"))}</pre>`;
+function activity(text) {
+  if (session?.paused) return;
+  $("#stepNum").textContent = "running";
+  setStep(`<span class="muted">${text}</span>`);
+}
+
+function milestone(icon, html) {
+  const pause = session?.replaying && mode === "simple" && !session.skip;
+  state.step = (state.step || 0) + 1;
+  $("#stepNum").textContent = `step ${state.step}`;
+  setStep(html, pause ? [["next step ▶", resume, true], ["skip to result", () => { session.skip = true; resume(); }]] : []);
+  if (pause) {
+    session.paused = true;
+    $("#stepBtns button")?.focus({ preventScroll: true });
+  }
 }
 
 document.addEventListener("click", (e) => {
@@ -250,6 +294,10 @@ const HANDLERS = {
     const label = STEPS[idx]?.[1] || ev.phase;
     if (PLAIN[ev.phase]) $("#nowline").textContent = PLAIN[ev.phase](ev);
     if (SIMPLE[ev.phase]) activity(SIMPLE[ev.phase](ev));
+    if (ev.phase === "bump" && state.pkg) logLine(`pip install ${esc(state.pkg.package)}==${esc(state.pkg.new)}`, "cmd");
+    if (ev.phase === "fix") logLine(`→ Nemotron Ultra: ${esc(ev.detail.replace(": Nemotron Ultra is thinking", "").toLowerCase())}, planning the fix`, "ai");
+    if (ev.phase === "research" && ev.detail.startsWith("Looking up")) logLine(`→ look up new error in the docs`, "ai");
+    if (ev.phase === "report") logLine(`→ Nemotron Nano: writing the pull request`, "ai");
     const d = document.createElement("div");
     d.className = "divider";
     d.innerHTML = `${esc(label)} <span>${esc(ev.detail)}</span>`;
@@ -258,6 +306,7 @@ const HANDLERS = {
   versions(ev) {
     state.pkg = ev;
     $("#runtitle").innerHTML = `${esc(ev.package)} ${esc(ev.old)} <span class="arrow">→</span> ${esc(ev.new)}`;
+    logLine(`bumpr ./${esc(state.sample || "")} ${esc(ev.package)} --to ${esc(ev.new)}`, "cmd");
 
   },
   tests(ev) {
@@ -267,18 +316,24 @@ const HANDLERS = {
     const score = `${ev.passed} / ${state.total || ev.passed + ev.failed}`;
     $("#sumNow").innerHTML = `<span class="${ev.green ? "good" : "bad"}">${score}</span>`;
     const n = state.total || ev.passed + ev.failed;
-    const pkg = state.pkg ? `${state.pkg.package} ${state.pkg.new.split(".")[0]}` : "the new version";
-    if (ev.label === "baseline") {
-      milestone("✅", `<b>Before the update</b>, the app works: all ${n} automatic checks pass.`);
-    } else if (state.broken === undefined) {
+    const ver = state.pkg ? `${state.pkg.package} ${ev.label === "baseline" ? state.pkg.old : state.pkg.new}` : "";
+    if (state.broken === undefined && ev.label !== "baseline") {
       state.broken = ev;
       $("#sumBroken").innerHTML = `<span class="bad">${score}</span>`;
-      if (!ev.green) milestone("💥", `After updating to <b>${esc(pkg)}</b>, only ${ev.passed} of ${n} checks pass. <b>The app is broken.</b>`);
-    } else if (ev.green && !state.fixed) {
-      state.fixed = true;
-      milestone("🎉", `<b>Fixed!</b> All ${n} of ${n} checks pass again.`);
-    } else if (!ev.green && ev.label !== "final") {
-      milestone("🔁", `Better, but not done: ${ev.passed} of ${n} checks pass. Bumpr reads the new error and tries again.`);
+    }
+    if (ev.green) {
+      renderChecks(() => "pass");
+      if (ev.label !== "final") logLine(`✓ ${ev.passed}/${n} checks pass on ${esc(ver)}`, "ok");
+      if (ev.label === "baseline") {
+        milestone("", `<b>Before the update</b> the app works: all ${n} checks pass on ${esc(ver)}.`);
+      } else if (!state.fixed) {
+        state.fixed = true;
+        milestone("", `<b>All ${n} checks pass</b> on ${esc(ver)}. The app works again.`);
+      }
+    } else {
+      // Which checks failed is only known once the error log (triage event) arrives right after.
+      logLine(`✗ ${ev.passed}/${n} checks pass on ${esc(ver)}`, "bad");
+      state.pendingTests = ev;
     }
     const tag = ev.label === "baseline" ? "baseline" : ev.label === "final" ? "final" : `run ${state.runs}`;
     const h = document.createElement("span");
@@ -297,6 +352,21 @@ const HANDLERS = {
   },
   triage(ev) {
     const lines = ev.digest.split("\n");
+    const failing = new Set([...ev.digest.matchAll(/(?:FAILED|ERROR) [^\s:]+::(test_\w+)/g)].map((m) => m[1]));
+    const moduleBroken = /ERROR \S+\.py(\s|$)(?!::)/.test(ev.digest) && !failing.size;
+    renderChecks((nm) => (moduleBroken || failing.has(nm) ? "fail" : "pass"));
+    const t = state.pendingTests;
+    state.pendingTests = null;
+    if (t) {
+      const n = state.total || t.passed + t.failed;
+      const nFail = Object.values(state.checkStatus).filter((x) => x === "fail").length;
+      if (t === state.broken) {
+        milestone("", `After updating to <b>${esc(state.pkg?.package || "")} ${esc(state.pkg?.new || "")}</b>, ` +
+          `${nFail} of ${n} checks fail. <b>The update broke the app.</b>`);
+      } else {
+        milestone("", `${n - nFail} of ${n} checks pass now. Bumpr reads the remaining error and tries again.`);
+      }
+    }
     add(head("bad", "Error log", "what broke") +
       `<pre class="keys">${esc(lines.slice(0, 8).join("\n"))}</pre>` +
       (lines.length > 8 ? `<details><summary>${lines.length - 8} more lines</summary><pre class="keys">${esc(lines.slice(8).join("\n"))}</pre></details>` : ""));
@@ -305,6 +375,7 @@ const HANDLERS = {
     state.searches += 1;
     updateStats();
     const items = ev.results.map((r) => `<li><span class="dom">${esc(domain(r.url))}</span><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title || r.url)}</a></li>`).join("");
+    logLine(`→ search "${esc(ev.query.slice(0, 80))}"  <span class="info">[Tavily · ${ev.results.length} results]</span>`, "ai");
     add(head("tavily", "Tavily", `search: “${esc(ev.query)}”`, `${ev.results.length} results`) +
       `<div class="explain">Searching the web for the library's current documentation, instead of trusting what the model remembers.</div>` +
       `<ul class="links">${items}</ul>`);
@@ -312,9 +383,10 @@ const HANDLERS = {
   docs(ev) {
     state.pages += 1;
     state.passages += ev.passages;
+    logLine(`→ read ${esc(ev.url.replace(/^https?:\/\//, "").slice(0, 70))}  <span class="info">[Nemotron Nano · ${ev.passages} relevant passage${ev.passages === 1 ? "" : "s"}]</span>`, "ai");
     if (state.pages === 1 && state.pkg) {
-      milestone("📖", `Bumpr found the <b>official ${esc(state.pkg.package)} manual</b> online. A small AI (Nemotron Nano) ` +
-        `read all of it and picked out the ${ev.passages} part${ev.passages === 1 ? "" : "s"} this app needs.`);
+      milestone("", `Bumpr found the <b>official ${esc(state.pkg.package)} documentation</b>. Nemotron Nano read the whole ` +
+        `page and kept the ${ev.passages} passage${ev.passages === 1 ? "" : "s"} relevant to this code.`);
     }
     updateStats();
     const url = ev.url.replace(/^https?:\/\//, "");
@@ -369,10 +441,12 @@ const HANDLERS = {
     const lines = ev.diff.split("\n").filter((l) => !/^(\+\+\+|---)/.test(l));
     const adds = lines.filter((l) => l.startsWith("+")).length, dels = lines.filter((l) => l.startsWith("-")).length;
     const n = adds + dels;
+    logLine(`→ rewrite ${esc(ev.path)}  <span class="info">[Nemotron Ultra · +${adds} −${dels}]</span>`, "ai");
+    showChange(ev.path, ev.diff);
     if (!state.edited) {
       state.edited = true;
-      milestone("🛠️", `A big AI (Nemotron Ultra) <b>rewrote the code</b>. <span class="bad">Red</span> = old, <span class="good">green</span> = new:`,
-        miniDiff(ev.diff));
+      milestone("", `Nemotron Ultra <b>rewrote ${esc(ev.path)}</b> using those docs. The change is shown below: ` +
+        `<span class="bad">−</span> removed, <span class="good">+</span> added.`);
     }
     add(head("ultra", "Rewrote", `<code>${esc(ev.path)}</code>`, `+${adds} −${dels}`) +
       `<div class="explain">Red lines are the old code, green lines the new code.</div>` +
@@ -406,23 +480,24 @@ const HANDLERS = {
       $("#resultPlain").hidden = false;
     }
     if (ev.success) {
-      const g = $("#guide");
       const cost = ev.usage ? ev.usage.total_cost : 0;
       const before = state.broken ? state.broken.passed : 0;
-      g.className = "guide final";
-      g.innerHTML = `<div class="g-icon">🎉</div><div class="g-body"><div class="g-text">` +
-        `<b>Repaired:</b> from <span class="bad">${before} of ${ev.total}</span> checks passing to ` +
-        `<span class="good">${ev.final.passed} of ${ev.total}</span>, in ${fmtTime(ev.elapsed)}, for ${(cost * 100).toFixed(1)} cents.</div>` +
-        `<div class="g-actions"><button class="primary" id="gDiff">See every code change</button>` +
-        `<button class="ghost" id="gAgain">Watch another example</button>` +
-        `<button class="ghost" id="gDev">Show technical details</button></div></div>`;
-      $("#gDiff").onclick = () => {
-        document.querySelector('.tab[data-tab="diff"]').click();
-        $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
-      };
-      const others = samples.map((s) => s.name).filter((nm) => nm !== document.querySelector(".card.active")?.dataset.name);
-      $("#gAgain").onclick = () => startReplay(others[0] || samples[0].name);
-      $("#gDev").onclick = () => setMode("dev");
+      logLine(`✓ done in ${fmtTime(ev.elapsed)} · ${ev.final.passed}/${ev.total} checks pass · AI cost $${cost.toFixed(3)}`, "ok");
+      $("#stepNum").textContent = "result";
+      const others = samples.map((s) => s.name).filter((nm) => nm !== state.sample);
+      setStep(`<b>Fixed.</b> ${before} → ${ev.final.passed} of ${ev.total} checks passing on ${esc(ev.package)} ${esc(ev.new)}, ` +
+        `in ${fmtTime(ev.elapsed)}, for ${(cost * 100).toFixed(1)}¢ of AI.`, [
+        ["see all changes", () => {
+          document.querySelector('.tab[data-tab="diff"]').click();
+          $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+        }, true],
+        ["another example", () => startReplay(others[0] || samples[0].name)],
+        ["full technical view", () => setMode("dev")],
+      ]);
+    } else {
+      $("#stepNum").textContent = "result";
+      setStep("The run stopped before every check passed. Switch to the full technical view to see why.",
+        [["full technical view", () => setMode("dev")]]);
     }
     const nl = $("#nowline");
     nl.classList.toggle("done", !!ev.success);

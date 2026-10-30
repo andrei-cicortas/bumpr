@@ -260,3 +260,74 @@ body.simple .feed, body.simple .history, body.simple .result-plain, body.simple 
 body.simple .layout { grid-template-columns: minmax(0, 1fr); max-width: 980px; }
 body.simple .summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 body:not(.simple) .guide { display: none; }
+
+/* ===== terminal / IDE look (overrides the earlier, softer styles) ===== */
+:root { --bg: #0b0d0f; --panel: #111417; --panel-2: #161a1e; --line: #23282e; --accent: #76b900; --accent-ink: #0a1200; }
+.card, .ev, .meter, .model, .totals, .docstats > div, .result, .summary > div, .how, .empty { border-radius: 6px; }
+.wordmark { font-family: var(--mono); font-weight: 600; font-size: 18px; }
+
+.start { max-width: 860px; text-align: left; }
+.term { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }
+.term-bar { display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--line); background: #0e1114; font: 12px var(--mono); color: var(--faint); }
+.dots { display: inline-flex; gap: 6px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: #2a3037; display: block; }
+.term-body { padding: 26px 28px 22px; }
+.t-lead { font-size: 17px; line-height: 1.55; margin: 0 0 18px; color: var(--muted); max-width: 680px; }
+.t-lead b { color: var(--text); }
+.t-cmd { font: 14px var(--mono); background: #0a0c0e; border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; margin-bottom: 18px; }
+.t-prompt { color: var(--accent); margin-right: 6px; }
+.ba { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: stretch; margin-bottom: 16px; }
+.ba-col { border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; background: #0e1114; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ba-h { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+.ba-code { font-size: 13px; background: none; padding: 0; word-break: break-word; }
+.ba-code.del { color: #ffa198; } .ba-code.add { color: #7ee787; }
+.ba-res { font: 13px var(--mono); }
+.ba-arrow { align-self: center; color: var(--faint); font: 18px var(--mono); }
+@media (max-width: 640px) { .ba { grid-template-columns: 1fr; } .ba-arrow { transform: rotate(90deg); justify-self: center; } .term-body { padding: 18px 16px; } }
+.t-pipe { font: 12.5px var(--mono); color: var(--muted); margin-bottom: 20px; }
+.t-pipe span { color: var(--faint); margin: 0 4px; }
+.t-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.run-btn { font: 600 15px var(--mono); background: var(--accent); color: var(--accent-ink); border: none; border-radius: 6px; padding: 11px 20px; }
+.run-btn:hover { filter: brightness(1.1); }
+.t-note { font: 12.5px var(--mono); color: var(--faint); }
+.t-links { margin-top: 14px; display: flex; gap: 14px; }
+.t-links .linkbtn { font: 12.5px var(--mono); padding: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.start .glossary { margin: 12px 0 0; max-width: none; border-radius: 6px; font: 12.5px var(--mono); }
+.start .glossary dd { color: var(--muted); }
+
+/* guided IDE panel */
+body:not(.simple) .simple-only { display: none !important; }
+.ide { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); margin-bottom: 14px; }
+.ide-main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+@media (max-width: 760px) { .ide-main { grid-template-columns: 1fr; } }
+.pane { min-width: 0; border-bottom: 1px solid var(--line); }
+.ide-main .pane + .pane { border-left: 1px solid var(--line); }
+@media (max-width: 760px) { .ide-main .pane + .pane { border-left: none; } }
+.pane-h { font: 11px var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--faint); padding: 8px 14px; border-bottom: 1px solid var(--line); background: #0e1114; display: flex; gap: 10px; align-items: center; }
+.pane-h span { text-transform: none; letter-spacing: 0; color: var(--muted); }
+.legend { margin-left: auto; }
+.legend .del { color: #ffa198; } .legend .add { color: #7ee787; }
+.checks { list-style: none; margin: 0; padding: 8px 0; font: 13px var(--mono); }
+.checks li { padding: 4px 14px; display: flex; gap: 10px; align-items: baseline; transition: background .3s; }
+.checks li .s { width: 12px; flex: none; text-align: center; }
+.checks li.pass .s { color: var(--pass); } .checks li.fail .s { color: var(--fail); } .checks li.pending .s { color: var(--faint); }
+.checks li.fail { color: #ffb4ad; } .checks li.pending { color: var(--faint); }
+.checks li.flash { background: rgba(118,185,0,.12); }
+.log { font: 12.5px/1.7 var(--mono); padding: 8px 14px; max-height: 260px; overflow: auto; }
+.log div { white-space: pre-wrap; word-break: break-word; }
+.log .cmd { color: var(--text); } .log .cmd::before { content: "$ "; color: var(--accent); }
+.log .ok { color: var(--pass); } .log .bad { color: var(--fail); } .log .info { color: var(--muted); }
+.log .ai { color: #c9d1d9; } .log .ai b { color: var(--accent); font-weight: 500; }
+.change pre.diff { margin: 0; border: none; border-radius: 0; max-height: 300px; font-size: 12.5px; }
+.stepbar { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #0e1114; flex-wrap: wrap; }
+.stepnum { font: 11px var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .07em; flex: none; }
+.steptext { flex: 1; min-width: 220px; font-size: 15.5px; }
+.steptext b { color: var(--accent); font-weight: 600; }
+.stepbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.stepbtns button { font: 600 13px var(--mono); border-radius: 6px; padding: 8px 14px; border: 1px solid var(--line); background: transparent; color: var(--text); }
+.stepbtns button.go { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.stepbtns button:hover { filter: brightness(1.15); }
+body.simple .runhead .status { font-family: var(--mono); }
+.empty:has(.start) { border: none; padding: 0; min-height: 0; display: block; }
+.term-body p, .term-body .t-lead { margin-left: 0 !important; margin-right: 0 !important; max-width: 700px !important; text-align: left; }
+.start { padding: 24px 0 !important; }

@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -78,8 +79,16 @@ def samples():
             if done:
                 summary = {"success": done.get("success"), "elapsed": done.get("elapsed"),
                            "cost": done["usage"]["total_cost"], "tests": done.get("total")}
-        out.append({"name": name, **meta, "replay": summary})
+        out.append({"name": name, **meta, "replay": summary, "tests": test_names(name)})
     return out
+
+
+def test_names(sample):
+    """Test function names of a sample, shown as the human-readable 'checks' list in the UI."""
+    names = []
+    for path in sorted((config.SAMPLES_DIR / sample / "tests").glob("test_*.py")):
+        names += re.findall(r"^def (test_\w+)", path.read_text(encoding="utf-8"), re.M)
+    return names
 
 
 @app.get("/api/replays/{name}")
