@@ -1,5 +1,6 @@
 """CLI: python -m bumpr <repo-dir> <package> [--to VERSION]"""
 import argparse
+from pathlib import Path
 import sys
 
 from . import config
@@ -59,12 +60,37 @@ def main():
     p.add_argument("repo", help="path to a Python project with tests")
     p.add_argument("package", help="dependency to upgrade, e.g. pandas")
     p.add_argument("--to", default="latest", help="target version: latest, a major (3), or exact (3.1.0)")
+    p.add_argument("--apply", action="store_true",
+                   help="write the fixed files into the repo when every test passes (review with `git diff`)")
+    p.add_argument("--out", default=".", help="folder for the .patch and the pull request description")
     args = p.parse_args()
     if not config.NEBIUS_API_KEY or not config.TAVILY_API_KEY:
         sys.exit("Set NEBIUS_API_KEY and TAVILY_API_KEY in .env")
-    result = Run(args.repo, args.package, args.to, on_event=show).execute()
+    run = Run(args.repo, args.package, args.to, on_event=show)
+    result = run.execute()
     if result.get("report"):
         print("\n" + result["report"])
+
+    if result.get("diff"):
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        stem = f"bumpr-{result['package']}-{result['new']}"
+        (out / f"{stem}.patch").write_text(result["diff"], encoding="utf-8")
+        (out / f"{stem}.md").write_text(result.get("report") or result.get("summary") or "", encoding="utf-8")
+        print(f"\npatch:          {out / (stem + '.patch')}")
+        print(f"PR description: {out / (stem + '.md')}")
+        if args.apply and result.get("success"):
+            repo = Path(args.repo)
+            for rel, content in run.changed_files.items():
+                target = repo / rel
+                if content is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(content, encoding="utf-8")
+            print(f"applied to {repo} ({len(run.changed_files)} files). Review with `git diff`, then commit.")
+        elif args.apply:
+            print("not applied: some tests still fail. The patch above shows how far Bumpr got.")
     sys.exit(0 if result.get("success") else 1)
 
 

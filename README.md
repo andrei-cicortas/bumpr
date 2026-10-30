@@ -101,8 +101,20 @@ cp .env.example .env                                   # add NEBIUS_API_KEY and 
 
 ```bash
 python -m bumpr samples/pandas-sales-report pandas --to 3
-python -m bumpr path/to/your/repo sqlalchemy --to 2      # --to latest | 2 | 2.1 | 2.1.6
+python -m bumpr path/to/your/repo sqlalchemy --to 2 --apply   # --to latest | 2 | 2.1 | 2.1.6
 ```
+
+Your repo is never touched during the run: Bumpr works on a copy in a throwaway sandbox. At the end you get
+`bumpr-<package>-<version>.patch` and `bumpr-<package>-<version>.md` (the pull request description, with sources)
+in the current folder (`--out` to change it). With `--apply`, and only if every test passes, the fixed files and the
+new pin are written into your repo, so you can review them with `git diff` and commit.
+
+Typical workflow for a developer:
+
+1. Dependabot/Renovate (or you) wants a major upgrade, e.g. pandas 2 -> 3.
+2. `python -m bumpr . pandas --to 3 --apply` in the project (needs a pytest suite and a `requirements.txt`).
+3. Read the PR description Bumpr wrote, review `git diff`, run your app if you like.
+4. `git checkout -b upgrade-pandas-3 && git commit -am "Upgrade pandas to 3"` and open the PR with the `.md` as its description.
 
 **Web UI** (recorded runs + live runs; `python -m web.build_static` builds the static, recordings-only site in `docs/`):
 

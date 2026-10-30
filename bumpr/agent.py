@@ -58,6 +58,7 @@ class Run:
         self.on_event = on_event
         self.record = record
         self.events = []
+        self.changed_files = {}
         self.started = time.time()
         self.llm = LLM(self.emit)
 
@@ -221,6 +222,9 @@ class Run:
                 diff.append("".join(difflib.unified_diff(a.splitlines(True), b.splitlines(True),
                                                          f"a/{rel}", f"b/{rel}")))
         diff_text = "\n".join(diff)
+        # New contents of every changed file, so the CLI can apply the fix to the user's repo (`--apply`).
+        self.changed_files = {rel: after.get(rel) for rel in sorted(set(before) | set(after))
+                              if before.get(rel) != after.get(rel)}
         report = ""
         if final.green and diff_text:
             self.phase("report", "Nemotron Nano is writing the pull request")
