@@ -36,8 +36,8 @@ async function boot() {
       ? "Live runs use real Nemotron calls on Nebius Token Factory; recordings replay a real run's event log."
       : "Live runs are switched off on this deployment; recordings replay a real run's event log, unedited.";
   const params = new URLSearchParams(location.search);
-  // Open straight into a real recorded run so there is never an empty "what now?" screen.
-  startReplay(params.get("replay") || "pandas-sales-report");
+  $("#cta").addEventListener("click", () => startReplay("pandas-sales-report"));
+  if (params.get("replay")) startReplay(params.get("replay"));
 }
 
 function renderSamples() {

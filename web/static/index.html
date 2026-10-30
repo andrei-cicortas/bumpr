@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="static/style.css?v=13">
+<link rel="stylesheet" href="static/style.css?v=14">
 </head>
 <body>
 <header class="top">
@@ -45,10 +45,11 @@
 
   <section class="run" id="run">
     <div class="empty" id="empty">
-      <div class="empty-inner">
-        <div class="big">Loading a recorded run…</div>
-        <p class="muted">Pick a project on the left to watch it, or run Bumpr on your own repo:
-          <code>python -m bumpr path/to/repo pandas --to 3</code></p>
+      <div class="empty-inner intro">
+        <div class="big">Bumpr upgrades a library in your project, reads the new official docs,
+          rewrites the code that broke, and re-runs the tests until they all pass.</div>
+        <button class="primary cta-small" id="cta">▶ Watch a real run: pandas 2 → 3</button>
+        <p class="muted">or pick another example on the left</p>
       </div>
     </div>
 
@@ -182,6 +183,6 @@ python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
   </form>
 </dialog>
 
-<script src="static/app.js?v=13"></script>
+<script src="static/app.js?v=14"></script>
 </body>
 </html>

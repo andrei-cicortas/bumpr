@@ -331,3 +331,7 @@ body.simple .runhead .status { font-family: var(--mono); }
 .empty:has(.start) { border: none; padding: 0; min-height: 0; display: block; }
 .term-body p, .term-body .t-lead { margin-left: 0 !important; margin-right: 0 !important; max-width: 700px !important; text-align: left; }
 .start { padding: 24px 0 !important; }
+.intro { max-width: 620px; text-align: center; }
+.intro .big { font-size: 19px; line-height: 1.5; font-weight: 500; margin-bottom: 20px; }
+.cta-small { font-size: 15px; padding: 11px 20px; }
+.intro p { margin-top: 12px !important; }
