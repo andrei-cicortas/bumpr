@@ -187,7 +187,7 @@ dialog input { width: 100%; padding: 9px 10px; border-radius: 7px; border: 1px s
 .bad { color: var(--fail) !important; } .good { color: var(--pass) !important; }
 .cta { font-size: 15px; padding: 11px 18px; margin-bottom: 10px; }
 .small { font-size: 12.5px; margin: 6px 0 !important; max-width: none !important; }
-.summary { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
 @media (max-width: 900px) { .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .summary > div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .summary .label { font-size: 10.5px; }

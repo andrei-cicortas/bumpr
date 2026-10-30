@@ -84,7 +84,7 @@ function resetView(name) {
   updateMeter(null);
   updateStats();
   $("#clock").textContent = "0:00";
-  $("#sumLib").textContent = `${s.from} → ${s.to}`;
+
   for (const id of ["#sumBroken", "#sumNow"]) $(id).textContent = "-";
   $("#sumLines").textContent = "0";
   $("#nowline").className = "nowline";
@@ -200,7 +200,7 @@ const HANDLERS = {
   versions(ev) {
     state.pkg = ev;
     $("#runtitle").innerHTML = `${esc(ev.package)} ${esc(ev.old)} <span class="arrow">→</span> ${esc(ev.new)}`;
-    $("#sumLib").textContent = `${ev.package} ${ev.old.split(".").slice(0, 2).join(".")} → ${ev.new.split(".").slice(0, 2).join(".")}`;
+
   },
   tests(ev) {
     state.runs += 1;
