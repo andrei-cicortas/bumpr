@@ -57,7 +57,7 @@ class StartRun(BaseModel):
 
 @app.get("/")
 def index():
-    return FileResponse(WEB / "static" / "index.html")
+    return FileResponse(WEB / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/config")
