@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="static/style.css?v=14">
+<link rel="stylesheet" href="static/style.css?v=15">
 </head>
 <body>
 <header class="top">
@@ -17,9 +17,9 @@
       <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l7 7h-4v5H9v-5H5z" fill="currentColor"/><rect x="5" y="17" width="14" height="3" rx="1.5" fill="currentColor" opacity=".55"/></svg>
     </span>
     <span class="wordmark">bumpr</span>
-    <span class="tagline dev">Upgrade a dependency. Bumpr reads <em>today's</em> docs, fixes what broke, and proves it with your tests.</span>
+    <span class="tagline">Upgrade a dependency. Bumpr reads <em>today's</em> docs, fixes what broke, and proves it with your tests.</span>
   </div>
-  <div class="stack dev">
+  <div class="stack">
     <span class="chip">NVIDIA Nemotron 3 Ultra</span>
     <span class="chip">Nemotron 3 Nano</span>
     <span class="chip">Nebius Token Factory</span>
@@ -29,7 +29,7 @@
 
 <main class="layout">
   <aside class="projects">
-    <h2 class="label">Examples (same idea, different libraries)</h2>
+    <h2 class="label">Projects to upgrade</h2>
     <div id="samples"></div>
     <div class="how">
       <h3 class="label">How it works</h3>
@@ -45,11 +45,21 @@
 
   <section class="run" id="run">
     <div class="empty" id="empty">
-      <div class="empty-inner intro">
-        <div class="big">Bumpr upgrades a library in your project, reads the new official docs,
-          rewrites the code that broke, and re-runs the tests until they all pass.</div>
-        <button class="primary cta-small" id="cta">▶ Watch a real run: pandas 2 → 3</button>
-        <p class="muted">or pick another example on the left</p>
+      <div class="empty-inner">
+        <h1 class="hero">Library upgrades break code.<br>Bumpr fixes it, and proves the fix.</h1>
+        <p class="lede">Your app depends on a library, say <b>pandas</b>. Its new major version renames and removes
+          functions, so after upgrading, your tests fail. Bumpr does what a developer would do by hand: it reads the
+          library's <b>current official docs</b>, rewrites your code with <b>NVIDIA Nemotron</b>, and re-runs your
+          tests until they all pass.</p>
+        <ol class="flow">
+          <li><span class="n">1</span><b>Upgrade</b><span>pandas 2.2 → 3.1</span><em class="bad">0 / 7 tests pass</em></li>
+          <li><span class="n">2</span><b>Read the docs</b><span>Tavily finds the official migration guide; Nemotron Nano pulls out what matters</span></li>
+          <li><span class="n">3</span><b>Rewrite</b><span>Nemotron Ultra plans the fix and edits the code</span><code>.fillna(method="ffill") → .ffill()</code></li>
+          <li><span class="n">4</span><b>Prove it</b><span>Tests re-run until green; you get a pull request</span><em class="good">7 / 7 tests pass</em></li>
+        </ol>
+        <button class="primary cta" id="cta">▶ Watch it upgrade pandas 2 → 3</button>
+        <p class="muted small">A real, unedited recording (about 1 minute at 4x). Or pick any project on the left.<br>
+          On your own repo: <code>python -m bumpr path/to/repo pandas --to 3</code></p>
       </div>
     </div>
 
@@ -65,31 +75,19 @@
         </div>
       </div>
 
-      <div class="ide simple-only" id="ide">
-        <div class="ide-main">
-          <section class="pane"><div class="pane-h">checks <span id="checksCount"></span></div><ul class="checks" id="checks"></ul></section>
-          <section class="pane"><div class="pane-h">log</div><div class="log" id="log"></div></section>
-        </div>
-        <section class="pane change" id="changePane" hidden><div class="pane-h">change <span id="changeFile"></span>
-          <span class="legend"><span class="del">− removed</span> <span class="add">+ added</span></span></div><pre class="diff" id="change"></pre></section>
-        <div class="stepbar" id="stepbar"><span class="stepnum" id="stepNum"></span><span class="steptext" id="stepText">starting…</span><span class="stepbtns" id="stepBtns"></span></div>
-      </div>
-
-      <div class="summary dev">
-        <div><span class="label">Checks passing after the update</span><span class="sum-big" id="sumBroken">-</span></div>
-        <div><span class="label">Checks passing now</span><span class="sum-big" id="sumNow">-</span></div>
+      <div class="summary">
+        <div><span class="label">Tests after upgrade</span><span class="sum-big" id="sumBroken">-</span></div>
+        <div><span class="label">Tests now</span><span class="sum-big" id="sumNow">-</span></div>
         <div><span class="label">Lines of code changed</span><span class="sum-big" id="sumLines">0</span></div>
         <div><span class="label">AI cost</span><span class="sum-big" id="sumCost">$0.00</span></div>
       </div>
-      <div class="guide" id="guide" hidden></div>
-      <p class="nowline dev" id="nowline">Starting…</p>
-      <div class="result-plain" id="resultPlain" hidden></div>
+      <p class="nowline" id="nowline">Starting…</p>
 
       <ol class="stepper" id="stepper"></ol>
 
-      <div class="meter dev">
+      <div class="meter">
         <div class="meter-top">
-          <span class="label">Automatic checks (tests)</span>
+          <span class="label">Test suite</span>
           <span class="meter-num" id="meternum">-</span>
         </div>
         <div class="bar" id="bar"><span class="seg pass"></span><span class="seg fail"></span><span class="seg err"></span></div>
@@ -119,8 +117,7 @@
   </section>
 
   <aside class="stats">
-    <h2 class="label">AI models at work</h2>
-    <p class="note" style="margin-top:-4px">Two NVIDIA Nemotron models share the job: the big one thinks and writes code, the small one reads the manual. Cheaper and faster than using the big one for everything.</p>
+    <h2 class="label">Model cascade</h2>
     <div class="cascade" id="cascade">
       <div class="model" data-model="ultra">
         <div class="mname">Nemotron 3 Ultra <span class="mrole">plans &amp; rewrites code</span></div>
@@ -139,7 +136,7 @@
       <div class="saving" id="saving"></div>
     </div>
 
-    <h2 class="label">Documentation read</h2>
+    <h2 class="label">Live documentation</h2>
     <div class="docstats">
       <div><span class="tnum" id="nsearch">0</span><span class="label">Tavily searches</span></div>
       <div><span class="tnum" id="npages">0</span><span class="label">pages read in full</span></div>
@@ -183,6 +180,6 @@ python -m bumpr samples/pandas-sales-report pandas --to 3</pre>
   </form>
 </dialog>
 
-<script src="static/app.js?v=14"></script>
+<script src="static/app.js?v=15"></script>
 </body>
 </html>
